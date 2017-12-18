@@ -70,4 +70,17 @@ if __name__ == "__main__":
     #print(request.parseRequest(request.parseInput("NOT AND 0 OR 1 2")))
     while True:
         query = input("Please enter your query in Polish notation:\n")
-        print(request.parseRequest(request.parseInput(query)))
+        if '!' in query:
+            print("Exiting...")
+            break
+        try:
+            response = request.parseRequest(request.parseInput(query))
+        except:
+            response = None
+            print("Invalid request. Valid operations are 'or', 'and' and 'not'. Enter '!' to quit.")
+
+        if response == []:
+            print("No results found. Try being less specific. Some of the terms you looked for might not exist.")
+        elif response is not None:
+            print(f"Request found in {len(response)} documents: {response}\n")
+
