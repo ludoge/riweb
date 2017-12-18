@@ -23,7 +23,7 @@ class CACMCollection(Collection):
     def __init__(self,indexLocation):
         Collection.__init__(self,indexLocation)
 
-    def parseNextBlock(self):
+    def parseNextBlock(self):  # TODO: make sure term IDs are unique across multiple blocks !!!!
 
         class Document:
             def __init__(self, ID):
@@ -89,7 +89,13 @@ class CACMCollection(Collection):
         #print(self.list[:10])
         self.invertedIndex = [(key, sorted(set([x[1] for x in group]))) for key, group in groupby(self.list, key=lambda x: x[0])]
 
-
+    def writeIndex(self):
+        with open(self.indexLocation, mode="w+") as file:
+            for indexTerm in self.invertedIndex:
+                file.write(str(indexTerm[0]) + " ")
+                for posting in indexTerm[1]:
+                    file.write(str(posting) + " ")
+                file.write("\n")
 
 if __name__ == "__main__":
 
@@ -97,3 +103,4 @@ if __name__ == "__main__":
     collection.parseNextBlock()
     print(collection.invertedIndex)
     print(collection.getTermId("test"))
+    collection.writeIndex()
