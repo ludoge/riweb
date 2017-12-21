@@ -8,7 +8,7 @@ class BooleanRequest:
 
     def simpleRequest(self, termId):
         try:
-            return self.collection.invertedIndex[int(termId)][1]
+            return [x[0] for x in self.collection.invertedIndex[int(termId)][1]]
         except TypeError:
             return self.orRequest([termId])
 
