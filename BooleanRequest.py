@@ -7,14 +7,20 @@ class BooleanRequest:
         self.allTerms = range(collection.termLen)
 
     def simpleRequest(self, termId):
-        return self.collection.invertedIndex[int(termId)][1]
+        try:
+            return self.collection.invertedIndex[int(termId)][1]
+        except TypeError:
+            return self.orRequest([termId])
 
     def notRequest(self, terms):
         posting = self.parseRequest(terms)
         return [x for x in self.allTerms if x not in posting]
 
     def andRequest(self, terms):
+        print("Terms :")
+        print(terms)
         postings = [self.parseRequest(term) for term in terms]
+        #print(postings)
         return sorted(reduce(set.intersection, [set(item) for item in postings]))
 
     def orRequest(self, terms):
@@ -22,7 +28,8 @@ class BooleanRequest:
         return sorted(reduce(set.union, [set(item) for item in postings]))
 
     def parseRequest(self, request):
-        #print(request)
+        print("Request: ")
+        print(request)
         if request == []:
             return []
         elif len(request)==1:
@@ -33,6 +40,7 @@ class BooleanRequest:
             return self.andRequest(request[1])
         elif request[0] == "OR":
             return self.orRequest(request[1])
+            print(request[1])
         else:
             return self.simpleRequest(request[0])
 
@@ -53,9 +61,9 @@ class BooleanRequest:
             except KeyError:
                 first = []
             if len(split) == 1:
-                return first
+                return [first]
             else:
-                return [first] + [self.parseInput(userInput[len(split[0]):])]
+                return [first] + self.parseInput(userInput[len(split[0]):])
 
 
 if __name__ == "__main__":
@@ -75,7 +83,7 @@ if __name__ == "__main__":
             break
         try:
             response = request.parseRequest(request.parseInput(query))
-        except:
+        except(IndentationError):
             response = None
             print("Invalid request. Valid operations are 'or', 'and' and 'not'. Enter '!' to quit.")
 
