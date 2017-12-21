@@ -69,7 +69,7 @@ class CACMCollection(Collection):
                 readTitle = False
                 readSummary = False
                 readKeywords = True
-
+        self.docLen = len(documents)
         for document in documents:
             self.docId[document.ID] = document.ID
             documentTokens = []
@@ -89,7 +89,7 @@ class CACMCollection(Collection):
         #print(self.list[:10])
         self.invertedIndex = [(key, [x[1] for x in group]) for key, group in groupby(self.list, key=lambda x: x[0])]
         self.invertedIndex = [(y[0], sorted(set([(z, y[1].count(z)) for z in y[1]]))) for y in self.invertedIndex]
-        print (self.invertedIndex[:2])
+        #print (self.invertedIndex[:2])
 
     def writeIndex(self):
         with open(self.indexLocation, mode="w+") as file:
