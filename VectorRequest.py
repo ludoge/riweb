@@ -8,19 +8,19 @@ class VectorRequest:
         self.collection = Collection
         self.allTerms = range(collection.termLen)
 
-        self.weights = {}
+        self.index_weights = {}
 
     def tf_idf_weights(self,termId):
         N = self.collection.docLen
         for docId in range(N):
-            self.weights[(docId, termId)] = 0
+            self.index_weights[(docId, termId)] = 0
         postings = self.collection.invertedIndex[termId][1]
         df = len(postings)
         idf = log10(N/df)
         for posting in postings:
             docId = posting[0]
             tf = posting[1]
-            self.weights[(termId, docId)] = (1+log10(tf))*idf
+            self.index_weights[(termId, docId)] = (1+log10(tf))*idf
 
     def all_weights(self):
         for termId in self.allTerms:
@@ -34,6 +34,6 @@ if __name__ == "__main__":
 
     request.all_weights()
 
-    print(request.weights[(0, 0)])
+    print(request.index_weights)
 
 
