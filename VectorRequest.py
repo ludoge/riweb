@@ -31,11 +31,7 @@ class VectorRequest:
         for termId in self.allTerms:
             self.tf_idf_weights(termId)
 
-    def request_weights(self, request):
-        """
-        :param request: string
-        :return:
-        """
+    def index_request(self, request):
         request_tokens = nltk.wordpunct_tokenize(request)
         request_terms = []
 
@@ -46,7 +42,9 @@ class VectorRequest:
                 pass
 
         request_terms = list(Counter(request_terms).items())
+        return request_terms
 
+    def request_weights(self, request_terms):
         weights = {}
 
         N = self.collection.docLen
@@ -60,7 +58,18 @@ class VectorRequest:
 
         return weights
 
-    def cos_similarity(self, docId, request_weights):
+    def cos_similarity(self, docId, request):
+
+        request_index = self.index_request(request)
+
+        terms = [x[0] for x in request_index]
+
+        docs = [x[0] for x in sum([self.collection.invertedIndex[x][1] for x in terms], [])]
+        if docId not in docs:
+            return 0
+
+        request_weights = self.request_weights(request_index)
+
         res = 0
         documents_norm = 0
         request_norm = 0
@@ -86,8 +95,8 @@ class VectorRequest:
         return res
 
     def full_ranked_vector_request(self, request, measure = cos_similarity):
-        weights = self.request_weights(request)
-        res = [(x, measure(self, x, weights)) for x in self.allDocuments]
+        #weights = self.request_weights(request)
+        res = [(x, measure(self, x, request)) for x in self.allDocuments]
         res = [x for x in res if x[1] > 0]
         res = sorted(res, key=lambda x: x[1])[::-1]
         try:
@@ -106,13 +115,13 @@ if __name__ == "__main__":
     request.all_weights()
 
     #print(request.index_weights)
-    test_weights = request.request_weights("cat")
+    #test_weights = request.request_weights(request.index_request("cat"))
 
     #print(test_weights)
 
-    print(request.cos_similarity(1170, test_weights))
+    #print(request.cos_similarity(1160, "test cat"))
 
-    print(request.full_ranked_vector_request("A cat to doge the Pentomino zzz by the Recursive Use of Shibas"))
-
+    print(request.full_ranked_vector_request("test"))
+    #print(request.index_request("cat"))
 
 
