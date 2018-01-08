@@ -99,6 +99,41 @@ class CACMCollection(Collection):
                     file.write(str(posting) + " ")
                 file.write("\n")
 
+    def queryTest(self):
+
+        class Query:
+            def __init__(self, id):
+                self.id = id
+                self.query = ""
+                self.results = []
+
+        queryText = open("Data/CACM/query.text", mode="r")
+        qrelsText = open("Data/CACM/qrels.text", mode="r")
+
+        queries = []
+        readQuery = False
+
+        for queryLine in queryText:
+            if queryLine[:1] == ".":
+                readQuery = False
+            if readQuery:
+                query.query = (query.query + " " + queryLine.lower()).replace("\n", "")
+                while query.query[0] == " ":
+                    query.query = query.query[1:]
+            if queryLine[:2] == ".I":
+                query = Query(int(queryLine.split(" ")[-1].replace("\n", "")))
+                for qrelsLine in qrelsText:
+                    if int(qrelsLine.split(" ")[0].replace("\n", "")) == query.id:
+                        query.results.append(int(qrelsLine.split(" ")[1].replace("\n", "")))
+                queries.append(query)
+            if queryLine[:2] == ".W":
+                readQuery = True
+        queryText.close()
+        qrelsText.close()
+
+        return queries
+
+
 if __name__ == "__main__":
 
     collection = CACMCollection('test')
