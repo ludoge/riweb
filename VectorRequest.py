@@ -31,6 +31,15 @@ class VectorRequest:
         for termId in self.allTerms:
             self.tf_idf_weights(termId)
 
+    def normalized_tf_weights(self):
+        for termId in self.allTerms:
+            postings = self.collection.invertedIndex[termId][1]
+            max_tf = max([x[1] for x in postings])
+            for posting in postings:
+                docId = posting[0]
+                tf = posting[1]
+                self.index_weights[(termId, docId)] = tf/max_tf
+
     def index_request(self, request):
         request_tokens = nltk.wordpunct_tokenize(request)
         request_terms = []
@@ -44,7 +53,7 @@ class VectorRequest:
         request_terms = list(Counter(request_terms).items())
         return request_terms
 
-    def request_weights(self, request_terms):
+    def request_tf_idf_weights(self, request_terms):
         weights = {}
 
         N = self.collection.docLen
@@ -58,17 +67,29 @@ class VectorRequest:
 
         return weights
 
+    def request_normalized_tf_weights(self, request_terms):
+        weights = {}
+
+        max_tf = max([x[1] for x in request_terms])
+
+        for term in request_terms:
+            tf = term[1]
+
+            weights[term[0]] = tf/max_tf
+
+        return weights
+
     def cos_similarity(self, docId, request):
 
         request_index = self.index_request(request)
 
         terms = [x[0] for x in request_index]
-
         docs = [x[0] for x in sum([self.collection.invertedIndex[x][1] for x in terms], [])]
         if docId not in docs:
             return 0
 
-        request_weights = self.request_weights(request_index)
+        #request_weights = self.request_tf_idf_weights(request_index)
+        request_weights = self.request_normalized_tf_weights(request_index)
 
         res = 0
         documents_norm = 0
@@ -112,7 +133,8 @@ if __name__ == "__main__":
     #print(collection.invertedIndex)
     request = VectorRequest(collection)
 
-    request.all_weights()
+    #request.all_weights()
+    request.normalized_tf_weights()
 
     #print(request.index_weights)
     #test_weights = request.request_weights(request.index_request("cat"))
@@ -121,7 +143,7 @@ if __name__ == "__main__":
 
     #print(request.cos_similarity(1160, "test cat"))
 
-    print(request.full_ranked_vector_request("test"))
+    print(request.full_ranked_vector_request("philosophy"))
     #print(request.index_request("cat"))
 
 
