@@ -1,12 +1,13 @@
 import nltk
 import string
+import os
 from itertools import groupby
 
 
 class Collection:
     """Classe pour manipuler des collections (on pourra faire hériter d'autres classes de celle-ci pour s'adapter au format propre à chaque collection)."""
 
-    def __init__(self,indexLocation):
+    def __init__(self, indexLocation = None):
         self.indexLocation = indexLocation # Emplacement où on stocke l'index inversé
         self.termId = {}
         self.termLen = 0
@@ -20,8 +21,8 @@ class Collection:
 
 class CACMCollection(Collection):
 
-    def __init__(self,indexLocation):
-        Collection.__init__(self,indexLocation)
+    def __init__(self, indexLocation = None):
+        Collection.__init__(self, indexLocation)
 
     def parseNextBlock(self):  # TODO: make sure term IDs are unique across multiple blocks !!!!
 
@@ -32,10 +33,11 @@ class CACMCollection(Collection):
                 self.summary = ""
                 self.keywords = ""
 
+        # Common words list
         common_words = open("Data/CACM/common_words", mode='r').read().splitlines()
-
         common_words += list(string.punctuation)
 
+        # Reading all documents to get their content
         all = open("Data/CACM/cacm.all", mode="r")
 
         documents = []
@@ -70,6 +72,8 @@ class CACMCollection(Collection):
                 readSummary = False
                 readKeywords = True
         self.docLen = len(documents)
+
+        # Tokenizing and creating inverted index
         for document in documents:
             self.docId[document.ID] = document.ID
             documentTokens = []
@@ -133,11 +137,62 @@ class CACMCollection(Collection):
 
         return queries
 
+class CS276Collection(Collection):
+
+    def __init__(self, indexLocation = os.path.dirname(__file__) + "\indexCS276"):
+        Collection.__init__(self, indexLocation)
+
+    def parseBlock(self, blockID):
+
+        # Common words list
+        common_words = open("Data/CACM/common_words", mode='r').read().splitlines()
+        common_words += list(string.punctuation)
+
+        # Loading all documents of the current block in memory
+        documentsNames = os.listdir("Data/CS276/pa1-data/" + str(blockID))
+        for name in documentsNames:
+            documentFile = open("Data/CS276/pa1-data/" + str(blockID) + "/" + name, mode="r")
+            documentContent = documentFile.read().replace("\n"," ")
+            documentFile.close()
+            # Tokenize document content
+            documentTokens = nltk.wordpunct_tokenize(documentContent)
+            documentTokens = [x for x in documentTokens if not x in common_words]
+            for token in documentTokens:
+                if token in self.termId:
+                    termId = self.termId[token]
+                else:
+                    termId = self.termLen
+                    self.termLen += 1
+                    self.termId[token] = termId
+                self.list.append((termId, name))
+        self.docLen += len(documentsNames)
+        self.list.sort()
+
+        # Creating inverted index
+        self.invertedIndex = [(key, [x[1] for x in group]) for key, group in groupby(self.list, key=lambda x: x[0])]
+        self.invertedIndex = [(y[0], sorted(set([(z, y[1].count(z)) for z in y[1]]))) for y in self.invertedIndex]
+
+        # Write index in Hard Drive
+        self.writeIndex(blockID)
+
+        # Release memory
+        del documentsNames
+        self.list = []
+        self.invertedIndex = []
+
+    def writeIndex(self, blockID):
+        with open(self.indexLocation + "\\" + str(blockID), mode="w+") as file:
+            for indexTerm in self.invertedIndex:
+                file.write(str(indexTerm[0]) + " ")
+                for posting in indexTerm[1]:
+                    file.write(str(posting) + " ")
+                file.write("\n")
+
 
 if __name__ == "__main__":
 
-    collection = CACMCollection('test')
-    collection.parseNextBlock()
+    collection = CS276Collection()
+    collection.parseBlock(0)
     #print(collection.invertedIndex)
-    print(collection.getTermId("test"))
-    collection.writeIndex()
+    #print(collection.getTermId("test"))
+    #collection.writeIndex()
