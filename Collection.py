@@ -139,7 +139,7 @@ class CACMCollection(Collection):
 
 class CS276Collection(Collection):
 
-    def __init__(self, indexLocation = os.path.dirname(__file__) + "\indexCS276"):
+    def __init__(self, indexLocation = "indexCS276"):
         Collection.__init__(self, indexLocation)
 
     def parseBlock(self, blockID):
@@ -154,6 +154,10 @@ class CS276Collection(Collection):
             documentFile = open("Data/CS276/pa1-data/" + str(blockID) + "/" + name, mode="r")
             documentContent = documentFile.read().replace("\n"," ")
             documentFile.close()
+            # Add this document's name to the list of doc id
+            docId = self.docLen
+            self.docId[str(blockID) + "/" + name] = docId
+            self.docLen += 1
             # Tokenize document content
             documentTokens = nltk.wordpunct_tokenize(documentContent)
             documentTokens = [x for x in documentTokens if not x in common_words]
@@ -164,8 +168,7 @@ class CS276Collection(Collection):
                     termId = self.termLen
                     self.termLen += 1
                     self.termId[token] = termId
-                self.list.append((termId, name))
-        self.docLen += len(documentsNames)
+                self.list.append((termId, docId))
         self.list.sort()
 
         # Creating inverted index
@@ -181,18 +184,72 @@ class CS276Collection(Collection):
         self.invertedIndex = []
 
     def writeIndex(self, blockID):
-        with open(self.indexLocation + "\\" + str(blockID), mode="w+") as file:
+        with open(self.indexLocation + "/" + str(blockID), mode="w+") as file:
             for indexTerm in self.invertedIndex:
                 file.write(str(indexTerm[0]) + " ")
                 for posting in indexTerm[1]:
                     file.write(str(posting) + " ")
                 file.write("\n")
 
+    def constructIndex(self):
+
+        # Write inverted index for each block
+        for blockID in range(10):
+            self.parseBlock(blockID)
+
+        # Open file to write the final inverted index and each partial reverted index
+        # indexFile = open(self.indexLocation + "/invertedIndex", mode="w+") /!\
+        blockIndexFile = {}
+        for blockID in range(10):
+            blockIndexFile[blockID] = open(self.indexLocation + "/" + str(blockID), mode="r")
+
+        # Reading line by line each partial reverted index and merging all lines with the smallest term id
+        # blockIndexFileOpen = range(10)
+
+        # Reading the first line from each index
+        currentLine = {}
+        currentTermId = {}
+        currentString = {}
+        for blockID in range(10):
+            currentLine[blockID] = blockIndexFile[blockID].readline()
+            firstSpace = currentLine[blockID].index(" ")
+            currentTermId[blockID] = int(currentLine[blockID][0:firstSpace])
+            currentString[blockID] = currentLine[blockID][firstSpace + 1:].replace("\n", "")
+
+        # Merging all lines with the smallest term id and reading the next line of those lines
+        # (or close the file if it was the last line)
+        termId = 0
+        while termId < self.termLen:
+            blocksToMerge = [blockID for blockID in currentTermId.keys() if currentTermId[blockID] == termId]
+            self.invertedIndex.append("")
+            for blockID in blocksToMerge:
+                # Adding the invert index of this block for this term id to elements the string of doc id already found
+                # for this term id.
+                self.invertedIndex[termId] += currentString[blockID]
+                # Reading the next line or closing this block.
+                currentLine[blockID] = blockIndexFile[blockID].readline()
+                if currentLine[blockID] == "":
+                    # Closing the block
+                    blockIndexFile[blockID].close()
+                    del blockIndexFile[blockID]
+                    del currentTermId[blockID]
+                    del currentString[blockID]
+                    del currentLine[blockID]
+                else:
+                    # Reading next line
+                    firstSpace = currentLine[blockID].index(" ")
+                    currentTermId[blockID] = int(currentLine[blockID][0:firstSpace])
+                    currentString[blockID] = currentLine[blockID][firstSpace + 1:].replace("\n", "")
+            termId += 1
+
+
+
+
 
 if __name__ == "__main__":
 
     collection = CS276Collection()
-    collection.parseBlock(0)
-    #print(collection.invertedIndex)
+    collection.constructIndex()
+    print(collection.invertedIndex)
     #print(collection.getTermId("test"))
     #collection.writeIndex()
