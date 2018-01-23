@@ -17,8 +17,8 @@ class BooleanRequest:
         return [x for x in self.allTerms if x not in posting]
 
     def andRequest(self, terms):
-        print("Terms :")
-        print(terms)
+        #print("Terms :")
+        #print(terms)
         postings = [self.parseRequest(term) for term in terms]
         #print(postings)
         return sorted(reduce(set.intersection, [set(item) for item in postings]))
@@ -28,8 +28,8 @@ class BooleanRequest:
         return sorted(reduce(set.union, [set(item) for item in postings]))
 
     def parseRequest(self, request):
-        print("Request: ")
-        print(request)
+        #print("Request: ")
+        #print(request)
         if request == []:
             return []
         elif len(request)==1:
@@ -63,7 +63,7 @@ class BooleanRequest:
             if len(split) == 1:
                 return [first]
             else:
-                return [first] + self.parseInput(userInput[len(split[0]):])
+                return [first] + [self.parseInput(userInput[len(split[0]):])]
 
 
 if __name__ == "__main__":
