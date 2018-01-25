@@ -143,7 +143,7 @@ if __name__ == "__main__":
 
     #print(request.cos_similarity(1160, "test cat"))
 
-    print(request.full_ranked_vector_request("philosophy"))
+    print(request.full_ranked_vector_request("Interested in articles on robotics, motion planning particularly the geometric and combinatorial aspects.  We are not interested in the dynamics of arm motion."))
     #print(request.index_request("cat"))
 
 
