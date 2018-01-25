@@ -5,7 +5,8 @@ from itertools import groupby
 
 
 class Collection:
-    """Classe pour manipuler des collections (on pourra faire hériter d'autres classes de celle-ci pour s'adapter au format propre à chaque collection)."""
+    """Classe pour manipuler des collections (on pourra faire hériter d'autres classes de celle-ci pour s'adapter au
+    format propre à chaque collection)."""
 
     def __init__(self, indexLocation = None):
         self.indexLocation = indexLocation # Emplacement où on stocke l'index inversé
@@ -15,29 +16,39 @@ class Collection:
         self.docLen = 0
         self.list = []
         self.invertedIndex = []
+        self.commonWords = []
+        self._getCommonWords()
+
+    def _getCommonWords(self):
+        """Récupère la liste des mots courants."""
+        with open("Data/CACM/common_words", mode='r') as file:
+            self.commonWords = file.read().splitlines()
+            self.commonWords += list(string.punctuation)
 
     def getTermId(self, term):
         return self.termId[term]
 
 class CACMCollection(Collection):
 
-    def __init__(self, indexLocation = None):
+    def __init__(self, indexLocation = "indexCACM"):
         Collection.__init__(self, indexLocation)
 
-    def parseNextBlock(self):  # TODO: make sure term IDs are unique across multiple blocks !!!!
+    def constructIndex(self):
+        """Constuit l'indexe inversé de la collection CACM."""
 
-        class Document:
+        # Définition locale du format des documents de la collection CACM.
+        class _Document:
             def __init__(self, ID):
                 self.ID = ID
                 self.title = ""
                 self.summary = ""
                 self.keywords = ""
 
-        # Common words list
-        common_words = open("Data/CACM/common_words", mode='r').read().splitlines()
-        common_words += list(string.punctuation)
+        # Liste des mots courants
+        common_words = self.commonWords
 
-        # Reading all documents to get their content
+        # Lecture de tous les documents et récupération de leur contenu
+        # Il s'agit d'une lecture ligne par ligne en repérant les marqueurs.
         all = open("Data/CACM/cacm.all", mode="r")
 
         documents = []
@@ -57,7 +68,7 @@ class CACMCollection(Collection):
             if readKeywords:
                 document.keywords = document.keywords + "\n" + line.lower()
             if line[:2] == ".I":
-                document = Document(int(line.split(" ")[-1].replace("\n","")))
+                document = _Document(int(line.split(" ")[-1].replace("\n","")))
                 documents.append(document)
             if line[:2] == ".T":
                 readTitle = True
@@ -73,7 +84,7 @@ class CACMCollection(Collection):
                 readKeywords = True
         self.docLen = len(documents)
 
-        # Tokenizing and creating inverted index
+        # Identification des tokens de chaque document et ajout à la liste des correspondances termId / documentId
         for document in documents:
             self.docId[document.ID] = document.ID
             documentTokens = []
@@ -90,18 +101,69 @@ class CACMCollection(Collection):
                     self.termId[token] = termId
                 self.list.append((termId,document.ID))
         self.list.sort()
-        #print(self.list[:10])
+
+        # Création de l'index inversé
         self.invertedIndex = [(key, [x[1] for x in group]) for key, group in groupby(self.list, key=lambda x: x[0])]
         self.invertedIndex = [(y[0], sorted(set([(z, y[1].count(z)) for z in y[1]]))) for y in self.invertedIndex]
-        #print (self.invertedIndex[:2])
 
-    def writeIndex(self):
-        with open(self.indexLocation, mode="w+") as file:
-            for indexTerm in self.invertedIndex:
-                file.write(str(indexTerm[0]) + " ")
-                for posting in indexTerm[1]:
-                    file.write(str(posting) + " ")
-                file.write("\n")
+    def saveIndex(self):
+        """ Enregistre l'indexe inversé sur disque-dur. """
+        if self.indexLocation is not None:
+            # Save invertedIndex
+            with open(self.indexLocation + "/invertedIndex", mode="w+") as file:
+                for indexTerm in self.invertedIndex:
+                    file.write(str(indexTerm[0]) + " ")
+                    for posting in indexTerm[1]:
+                        file.write(str(posting[0]) + "-" + str(posting[1]) + " ")
+                    file.write("\n")
+            # Save termId
+            _termById = {self.termId[term]: term for term in self.termId}
+            _termLen = len(_termById)
+            with open(self.indexLocation + "/termId", mode="w+") as file:
+                for termId in range(_termLen):
+                    file.write(str(_termById[termId]) + "\n")
+            # Save docId
+            with open(self.indexLocation + "/docId", mode="w+") as file:
+                for docId in self.docId:
+                    file.write(str(docId) + "\n")
+        else:
+            print("No location specified to save inverted index.")
+
+    def loadIndex(self):
+        """ Récupère l'index inversé stocké sur disque-dur. """
+        if self.indexLocation is not None:
+            # Load invertedIndex
+            self.invertedIndex = []
+            with open(self.indexLocation + "/invertedIndex", mode="r") as file:
+                line = file.readline()
+                while line != "":
+                    lineContent = line.replace("\n", "").split(" ")
+                    self.invertedIndex.append(
+                        (int(lineContent[0]), [(int(docOccurrence.split("-")[0]), int(docOccurrence.split("-")[1]))
+                                           for docOccurrence in lineContent[1:] if docOccurrence != ""])
+                    )
+                    line = file.readline()
+            # Load termId
+            self.termId = {}
+            with open(self.indexLocation + "/termId", mode="r") as file:
+                termId = 0
+                line = file.readline().replace("\n", "")
+                while line != "":
+                    self.termId[line] = termId
+                    termId += 1
+                    line = file.readline().replace("\n", "")
+                self.termLen = len(self.termId)
+            # Load docId
+            self.docId = {}
+            with open(self.indexLocation + "/docId", mode="r") as file:
+                line = file.readline().replace("\n", "")
+                while line != "":
+                    self.docId[int(line)] = int(line)
+                    line = file.readline().replace("\n", "")
+                self.docLen = len(self.docId)
+        else:
+            print("No location specified to load inverted index.")
+
 
     def queryTest(self):
 
@@ -148,6 +210,8 @@ class CS276Collection(Collection):
         common_words = open("Data/CACM/common_words", mode='r').read().splitlines()
         common_words += list(string.punctuation)
 
+        print("Generating index for block " + str(blockID) + "...")
+
         # Loading all documents of the current block in memory
         documentsNames = os.listdir("Data/CS276/pa1-data/" + str(blockID))
         for name in documentsNames:
@@ -174,9 +238,12 @@ class CS276Collection(Collection):
         # Creating inverted index
         self.invertedIndex = [(key, [x[1] for x in group]) for key, group in groupby(self.list, key=lambda x: x[0])]
         self.invertedIndex = [(y[0], sorted(set([(z, y[1].count(z)) for z in y[1]]))) for y in self.invertedIndex]
+        print("Index for block " + str(blockID) + " generated.")
 
         # Write index in Hard Drive
         self.writeIndex(blockID)
+        print("Index for block " + str(blockID) + " saved.")
+
 
         # Release memory
         del documentsNames
@@ -205,6 +272,7 @@ class CS276Collection(Collection):
 
         # Reading line by line each partial reverted index and merging all lines with the smallest term id
         # blockIndexFileOpen = range(10)
+        print("Merging index from all blocks...")
 
         # Reading the first line from each index
         currentLine = {}
@@ -242,14 +310,13 @@ class CS276Collection(Collection):
                     currentString[blockID] = currentLine[blockID][firstSpace + 1:].replace("\n", "")
             termId += 1
 
-
+        print("Index merged.")
 
 
 
 if __name__ == "__main__":
 
-    collection = CS276Collection()
+    collection = CACMCollection()
     collection.constructIndex()
-    print(collection.invertedIndex)
-    #print(collection.getTermId("test"))
-    #collection.writeIndex()
+    collection.saveIndex()
+    collection.loadIndex()

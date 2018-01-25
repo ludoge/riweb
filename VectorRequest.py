@@ -129,7 +129,7 @@ class VectorRequest:
 
 if __name__ == "__main__":
     collection = CACMCollection('test')
-    collection.parseNextBlock()
+    collection.constructIndex()
     #print(collection.invertedIndex)
     request = VectorRequest(collection)
 
