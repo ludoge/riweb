@@ -25,6 +25,68 @@ class Collection:
             self.commonWords = file.read().splitlines()
             self.commonWords += list(string.punctuation)
 
+
+    def saveIndex(self):
+        """ Enregistre l'indexe inversé sur disque-dur. """
+        if self.indexLocation is not None:
+            # Save invertedIndex
+            with open(self.indexLocation + "/invertedIndex", mode="w+") as file:
+                for indexTerm in self.invertedIndex:
+                    file.write(str(indexTerm[0]) + " ")
+                    for posting in indexTerm[1]:
+                        file.write(str(posting[0]) + "-" + str(posting[1]) + " ")
+                    file.write("\n")
+            # Save termId
+            _termById = {self.termId[term]: term for term in self.termId}
+            _termLen = len(_termById)
+            with open(self.indexLocation + "/termId", mode="w+") as file:
+                for termId in range(_termLen):
+                    file.write(str(termId) + " " + str(_termById[termId]) + "\n")
+            # Save docId
+            _docById = {self.docId[doc]: doc for doc in self.docId}
+            with open(self.indexLocation + "/docId", mode="w+") as file:
+                for docId in _docById:
+                    file.write(str(docId) + " " + str(_docById[docId]) + "\n")
+        else:
+            print("No location specified to save inverted index.")
+
+    def loadIndex(self):
+        """ Récupère l'index inversé stocké sur disque-dur. """
+        if self.indexLocation is not None:
+            # Load invertedIndex
+            self.invertedIndex = []
+            with open(self.indexLocation + "/invertedIndex", mode="r") as file:
+                line = file.readline()
+                while line != "":
+                    lineContent = line.replace("\n", "").split(" ")
+                    self.invertedIndex.append(
+                        (int(lineContent[0]), [(int(docOccurrence.split("-")[0]), int(docOccurrence.split("-")[1]))
+                                           for docOccurrence in lineContent[1:] if docOccurrence != ""])
+                    )
+                    line = file.readline()
+            # Load termId
+            self.termId = {}
+            with open(self.indexLocation + "/termId", mode="r") as file:
+                line = file.readline().replace("\n", "")
+                while line != "":
+                    termId = line.split(" ")[0]
+                    term = line.split(" ")[1]
+                    self.termId[term] = int(termId)
+                    line = file.readline().replace("\n", "")
+                self.termLen = len(self.termId)
+            # Load docId
+            self.docId = {}
+            with open(self.indexLocation + "/docId", mode="r") as file:
+                line = file.readline().replace("\n", "")
+                while line != "":
+                    docId = line.split(" ")[0]
+                    doc = line.split(" ")[1]
+                    self.docId[doc] = int(docId)
+                    line = file.readline().replace("\n", "")
+                self.docLen = len(self.docId)
+        else:
+            print("No location specified to load inverted index.")
+
     def getTermId(self, term):
         return self.termId[term]
 
@@ -105,65 +167,6 @@ class CACMCollection(Collection):
         # Création de l'index inversé
         self.invertedIndex = [(key, [x[1] for x in group]) for key, group in groupby(self.list, key=lambda x: x[0])]
         self.invertedIndex = [(y[0], sorted(set([(z, y[1].count(z)) for z in y[1]]))) for y in self.invertedIndex]
-
-    def saveIndex(self):
-        """ Enregistre l'indexe inversé sur disque-dur. """
-        if self.indexLocation is not None:
-            # Save invertedIndex
-            with open(self.indexLocation + "/invertedIndex", mode="w+") as file:
-                for indexTerm in self.invertedIndex:
-                    file.write(str(indexTerm[0]) + " ")
-                    for posting in indexTerm[1]:
-                        file.write(str(posting[0]) + "-" + str(posting[1]) + " ")
-                    file.write("\n")
-            # Save termId
-            _termById = {self.termId[term]: term for term in self.termId}
-            _termLen = len(_termById)
-            with open(self.indexLocation + "/termId", mode="w+") as file:
-                for termId in range(_termLen):
-                    file.write(str(_termById[termId]) + "\n")
-            # Save docId
-            with open(self.indexLocation + "/docId", mode="w+") as file:
-                for docId in self.docId:
-                    file.write(str(docId) + "\n")
-        else:
-            print("No location specified to save inverted index.")
-
-    def loadIndex(self):
-        """ Récupère l'index inversé stocké sur disque-dur. """
-        if self.indexLocation is not None:
-            # Load invertedIndex
-            self.invertedIndex = []
-            with open(self.indexLocation + "/invertedIndex", mode="r") as file:
-                line = file.readline()
-                while line != "":
-                    lineContent = line.replace("\n", "").split(" ")
-                    self.invertedIndex.append(
-                        (int(lineContent[0]), [(int(docOccurrence.split("-")[0]), int(docOccurrence.split("-")[1]))
-                                           for docOccurrence in lineContent[1:] if docOccurrence != ""])
-                    )
-                    line = file.readline()
-            # Load termId
-            self.termId = {}
-            with open(self.indexLocation + "/termId", mode="r") as file:
-                termId = 0
-                line = file.readline().replace("\n", "")
-                while line != "":
-                    self.termId[line] = termId
-                    termId += 1
-                    line = file.readline().replace("\n", "")
-                self.termLen = len(self.termId)
-            # Load docId
-            self.docId = {}
-            with open(self.indexLocation + "/docId", mode="r") as file:
-                line = file.readline().replace("\n", "")
-                while line != "":
-                    self.docId[int(line)] = int(line)
-                    line = file.readline().replace("\n", "")
-                self.docLen = len(self.docId)
-        else:
-            print("No location specified to load inverted index.")
-
 
     def queryTest(self):
 
