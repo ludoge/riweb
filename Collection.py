@@ -4,6 +4,49 @@ import os
 from itertools import groupby
 
 
+def intToVBCode(number):
+    """ Convertit un entier en un tableau d'octets correspondant à son variable byte code """
+    if not isinstance(number, int):
+        raise TypeError("number converted in VB code must be an integer")
+    if number < 0:
+        raise ValueError("number converted in VB code must be positive")
+    b = number % 128
+    a = number // 128
+    result = [128 + b]
+    while a > 0:
+        b = a % 128
+        a = a // 128
+        result.insert(0, b)
+    return bytearray(result)
+
+
+def VBCodeToInt(bytesArray):
+    """ Convertit un bytearray représentant une suite de nombres codés en VB code pour retourner une liste d'entier """
+    result = []
+    value = 0
+    for i in range(len(bytesArray)):
+        byte = bytesArray.pop(0)
+        if byte < 128:
+            value = value * 128 + byte
+        else:
+            value = value * 128 + (byte - 128)
+            result.append(value)
+            value = 0
+    return result
+
+
+def VBCodeToFirstInt(bytesArray):
+    """ Même chose que VBCodeToInt mais ne donne que le premier entier """
+    value = 0
+    byte = bytesArray.pop(0)
+    while byte < 128:
+        value = value * 128 + byte
+        byte = bytesArray.pop(0)
+    value = value * 128 + (byte - 128)
+    return value
+
+
+
 class Collection:
     """Classe pour manipuler des collections (on pourra faire hériter d'autres classes de celle-ci pour s'adapter au
     format propre à chaque collection)."""
@@ -27,25 +70,58 @@ class Collection:
             self.commonWords = file.read().splitlines()
             self.commonWords += list(string.punctuation)
 
+    def _indexToBinary(self, file):
+        """ Convertit l'index inversé en variable byte code pour une enregistrement avec compression. """
+
+        vbcode = bytearray([])
+
+        for indexTerm in self.invertedIndex:
+            term_code = intToVBCode(indexTerm[0])
+            previous_posting_id = 0
+            for posting in indexTerm[1]:
+                posting_id_diff = posting[0] - previous_posting_id
+                previous_posting_id = posting[0]
+                term_code.extend(intToVBCode(posting_id_diff))
+                term_code.extend(intToVBCode(posting[1]))
+            # On ajoute au début de cette chaine d'octet le nombre de postings de ce terme, afin de savoir quand
+            # commence la liste de postings du terme suivant
+            vbcode.extend(intToVBCode(len(indexTerm[1])))
+            vbcode.extend(term_code)
+
+        file.write(vbcode)
+
+        del vbcode
+
+    def _binaryToIndex(self, file):
+        """ Lit un fichier encodé en variable byte code pour récupérer l'index inversé. """
+        bytesArray = bytearray(file.read())
+        while len(bytesArray) > 0:
+            nbPostings = VBCodeToFirstInt(bytesArray)
+            termId = VBCodeToFirstInt(bytesArray)
+            postings = []
+            previousPostingId = 0
+            for i in range(nbPostings):
+                postingId = VBCodeToFirstInt(bytesArray) + previousPostingId
+                postingCount = VBCodeToFirstInt(bytesArray)
+                postings.append((postingId, postingCount))
+                previousPostingId = postingId
+            self.invertedIndex.append((termId, postings))
+
     def saveIndex(self):
         """ Enregistre l'indexe inversé sur disque-dur. """
         if self.indexLocation is not None:
-            # Save invertedIndex
-            with open(self.indexLocation + "/invertedIndex", mode="w+") as file:
-                for indexTerm in self.invertedIndex:
-                    file.write(str(indexTerm[0]) + " ")
-                    for posting in indexTerm[1]:
-                        file.write(str(posting[0]) + "-" + str(posting[1]) + " ")
-                    file.write("\n")
+            # Save invertedIndex in variable byte code
+            with open(self.indexLocation + "/invertedIndex", mode="wb") as file:
+                self._indexToBinary(file)
             # Save termId
             _termById = {self.termId[term]: term for term in self.termId}
             _termLen = len(_termById)
-            with open(self.indexLocation + "/termId", mode="w+") as file:
+            with open(self.indexLocation + "/termId", mode="w") as file:
                 for termId in range(_termLen):
                     file.write(str(termId) + " " + str(_termById[termId]) + "\n")
             # Save docId
             _docById = {self.docId[doc]: doc for doc in self.docId}
-            with open(self.indexLocation + "/docId", mode="w+") as file:
+            with open(self.indexLocation + "/docId", mode="w") as file:
                 for docId in _docById:
                     file.write(str(docId) + " " + str(_docById[docId]) + "\n")
         else:
@@ -56,15 +132,8 @@ class Collection:
         if self.indexLocation is not None:
             # Load invertedIndex
             self.invertedIndex = []
-            with open(self.indexLocation + "/invertedIndex", mode="r") as file:
-                line = file.readline()
-                while line != "":
-                    lineContent = line.replace("\n", "").split(" ")
-                    self.invertedIndex.append(
-                        (int(lineContent[0]), [(int(docOccurrence.split("-")[0]), int(docOccurrence.split("-")[1]))
-                                           for docOccurrence in lineContent[1:] if docOccurrence != ""])
-                    )
-                    line = file.readline()
+            with open(self.indexLocation + "/invertedIndex", mode="rb") as file:
+                self._binaryToIndex(file)
             # Load termId
             self.termId = {}
             with open(self.indexLocation + "/termId", mode="r") as file:
