@@ -10,8 +10,8 @@ common_words += list(string.punctuation)
 class VectorRequest:
     def __init__(self, Collection):
         self.collection = Collection
-        self.allTerms = range(collection.termLen)
-        self.allDocuments = range(collection.docLen)
+        self.allTerms = range(self.collection.termLen)
+        self.allDocuments = range(self.collection.docLen)
 
         self.index_weights = {}
 
@@ -79,7 +79,7 @@ class VectorRequest:
 
         return weights
 
-    def cos_similarity(self, docId, request):
+    def cos_similarity(self, docId, request, request_weights):
 
         request_index = self.index_request(request)
 
@@ -89,25 +89,20 @@ class VectorRequest:
             return 0
 
         #request_weights = self.request_tf_idf_weights(request_index)
-        request_weights = self.request_normalized_tf_weights(request_index)
+        #request_weights = self.request_normalized_tf_weights(request_index)
 
         res = 0
         documents_norm = 0
         request_norm = 0
 
-        for i in self.allTerms:
+        for i in terms:
             try:
                 res += self.index_weights[(i, docId)]*request_weights[i]
-            except:
-                pass
-            try:
                 documents_norm += self.index_weights[(i, docId)] ** 2
-            except:
+            except KeyError:
                 pass
-            try:
-                request_norm += request_weights[i]**2
-            except:
-                pass
+            request_norm += request_weights[i]**2
+
 
         try:
             res = res/(sqrt(documents_norm*request_norm))
@@ -116,8 +111,8 @@ class VectorRequest:
         return res
 
     def full_ranked_vector_request(self, request, measure = cos_similarity):
-        #weights = self.request_weights(request)
-        res = [(x, measure(self, x, request)) for x in self.allDocuments]
+        weights = self.request_tf_idf_weights(self.index_request(request))
+        res = [(x, measure(self, x, request, weights)) for x in self.allDocuments]
         res = [x for x in res if x[1] > 0]
         res = sorted(res, key=lambda x: x[1])[::-1]
         try:
@@ -143,7 +138,7 @@ if __name__ == "__main__":
 
     #print(request.cos_similarity(1160, "test cat"))
 
-    print(request.full_ranked_vector_request("Interested in articles on robotics, motion planning particularly the geometric and combinatorial aspects.  We are not interested in the dynamics of arm motion."))
+    print(request.full_ranked_vector_request("List all articles on EL1 and ECL (EL1 may be given as EL/1; I don't remember how they did it."))
     #print(request.index_request("cat"))
 
 
