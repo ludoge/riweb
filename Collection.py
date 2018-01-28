@@ -176,30 +176,26 @@ class CACMCollection(Collection):
                 self.query = ""
                 self.results = []
 
-        queryText = open("Data/CACM/query.text", mode="r")
-        qrelsText = open("Data/CACM/qrels.text", mode="r")
+        with open("Data/CACM/query.text", mode="r") as queryText:
+            queries = []
+            read_query = False
 
-        queries = []
-        readQuery = False
-
-        for queryLine in queryText:
-            if queryLine[:1] == ".":
-                readQuery = False
-            if readQuery:
-                query.query = (query.query + " " + queryLine.lower()).replace("\n", "")
-                while query.query[0] == " ":
-                    query.query = query.query[1:]
-            if queryLine[:2] == ".I":
-                query = Query(int(queryLine.split(" ")[-1].replace("\n", "")))
-                for qrelsLine in qrelsText:
-                    if int(qrelsLine.split(" ")[0].replace("\n", "")) == query.id:
-                        query.results.append(int(qrelsLine.split(" ")[1].replace("\n", "")))
-                queries.append(query)
-            if queryLine[:2] == ".W":
-                readQuery = True
-        queryText.close()
-        qrelsText.close()
-
+            for queryLine in queryText:
+                if queryLine[:1] == ".":
+                    read_query = False
+                if read_query:
+                    query.query = (query.query + " " + queryLine.lower()).replace("\n", "")
+                    while query.query[0] == " ":
+                        query.query = query.query[1:]
+                if queryLine[:2] == ".I":
+                    query = Query(int(queryLine.split(" ")[-1].replace("\n", "")))
+                    with open("Data/CACM/qrels.text", mode="r") as qrelsText:
+                        for qrelsLine in qrelsText:
+                            if int(qrelsLine.split(" ")[0].replace("\n", "")) == query.id:
+                                query.results.append(int(qrelsLine.split(" ")[1].replace("\n", "")))
+                    queries.append(query)
+                if queryLine[:2] == ".W":
+                    read_query = True
         return queries
 
 class CS276Collection(Collection):
