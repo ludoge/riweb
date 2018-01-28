@@ -128,9 +128,25 @@ class VectorRequest:
 
 
 if __name__ == "__main__":
-    collection = CACMCollection('test')
-    collection.constructIndex()
-    #print(collection.invertedIndex)
+
+    # Collection choice
+    collection_name = ""
+    while collection_name not in ['CACM', 'CS276']:
+        collection_name = input("Choose a collection among 'CACM' and 'CS276'\n").upper()
+
+    if collection_name == 'CS276':
+        collection = CS276Collection()
+    else:
+        collection = CACMCollection()
+
+    if os.path.isfile('index' + collection_name + '/docId') and os.path.isfile('index' + collection_name + '/termId') \
+            and os.path.isfile('index' + collection_name + '/invertedIndex'):
+        collection.loadIndex()
+    else:
+        collection.constructIndex()
+        collection.saveIndex()
+
+    # Initiate vector request
     request = VectorRequest(collection)
 
     #request.all_weights()

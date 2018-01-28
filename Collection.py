@@ -18,13 +18,14 @@ class Collection:
         self.invertedIndex = []
         self.commonWords = []
         self._getCommonWords()
+        if self.indexLocation is not None and not os.path.exists(self.indexLocation):
+            os.makedirs(self.indexLocation)
 
     def _getCommonWords(self):
         """Récupère la liste des mots courants."""
         with open("Data/CACM/common_words", mode='r') as file:
             self.commonWords = file.read().splitlines()
             self.commonWords += list(string.punctuation)
-
 
     def saveIndex(self):
         """ Enregistre l'indexe inversé sur disque-dur. """
@@ -89,6 +90,7 @@ class Collection:
 
     def getTermId(self, term):
         return self.termId[term]
+
 
 class CACMCollection(Collection):
 
@@ -202,6 +204,7 @@ class CACMCollection(Collection):
 
         return queries
 
+
 class CS276Collection(Collection):
 
     def __init__(self, indexLocation = "indexCS276"):
@@ -258,7 +261,7 @@ class CS276Collection(Collection):
             for indexTerm in self.invertedIndex:
                 file.write(str(indexTerm[0]) + " ")
                 for posting in indexTerm[1]:
-                    file.write(str(posting) + " ")
+                    file.write(str(posting[0]) + "-" + str(posting[1]) + " ")
                 file.write("\n")
 
     def constructIndex(self):
@@ -280,46 +283,60 @@ class CS276Collection(Collection):
         # Reading the first line from each index
         currentLine = {}
         currentTermId = {}
-        currentString = {}
+        currentPostings = {}
         for blockID in range(10):
-            currentLine[blockID] = blockIndexFile[blockID].readline()
-            firstSpace = currentLine[blockID].index(" ")
-            currentTermId[blockID] = int(currentLine[blockID][0:firstSpace])
-            currentString[blockID] = currentLine[blockID][firstSpace + 1:].replace("\n", "")
+            currentLine[blockID] = blockIndexFile[blockID].readline().replace("\n", "").split(" ")
+            currentTermId[blockID] = int(currentLine[blockID][0])
+            currentPostings[blockID] = [(int(posting.split("-")[0]), int(posting.split("-")[1]))
+                                        for posting in currentLine[blockID][1:] if posting != '']
 
         # Merging all lines with the smallest term id and reading the next line of those lines
         # (or close the file if it was the last line)
         termId = 0
         while termId < self.termLen:
             blocksToMerge = [blockID for blockID in currentTermId.keys() if currentTermId[blockID] == termId]
-            self.invertedIndex.append("")
+            self.invertedIndex.append([termId, []])
             for blockID in blocksToMerge:
                 # Adding the invert index of this block for this term id to elements the string of doc id already found
                 # for this term id.
-                self.invertedIndex[termId] += currentString[blockID]
+                self.invertedIndex[termId][1] += currentPostings[blockID]
                 # Reading the next line or closing this block.
-                currentLine[blockID] = blockIndexFile[blockID].readline()
-                if currentLine[blockID] == "":
+                currentLine[blockID] = blockIndexFile[blockID].readline().replace("\n", "").split(" ")
+                if currentLine[blockID] == [""]:
                     # Closing the block
+                    print("Block " + str(blockID) + " has been closed.")
                     blockIndexFile[blockID].close()
                     del blockIndexFile[blockID]
                     del currentTermId[blockID]
-                    del currentString[blockID]
+                    del currentPostings[blockID]
                     del currentLine[blockID]
                 else:
                     # Reading next line
-                    firstSpace = currentLine[blockID].index(" ")
-                    currentTermId[blockID] = int(currentLine[blockID][0:firstSpace])
-                    currentString[blockID] = currentLine[blockID][firstSpace + 1:].replace("\n", "")
+                    currentTermId[blockID] = int(currentLine[blockID][0])
+                    currentPostings[blockID] = [(int(posting.split("-")[0]), int(posting.split("-")[1]))
+                                                for posting in currentLine[blockID][1:] if posting != '']
             termId += 1
 
         print("Index merged.")
 
 
-
 if __name__ == "__main__":
 
-    collection = CACMCollection()
-    collection.constructIndex()
-    collection.saveIndex()
-    collection.loadIndex()
+    # Collection choice
+    collection_name = ""
+    while collection_name not in ['CACM', 'CS276']:
+        collection_name = input("Choose a collection among 'CACM' and 'CS276'\n").upper()
+
+    if collection_name == 'CS276':
+        collection = CS276Collection()
+    else:
+        collection = CACMCollection()
+
+    if os.path.isfile('index' + collection_name + '/docId') and os.path.isfile('index' + collection_name + '/termId') \
+            and os.path.isfile('index' + collection_name + '/invertedIndex'):
+        collection.loadIndex()
+    else:
+        collection.constructIndex()
+        collection.saveIndex()
+        collection.loadIndex()
+
