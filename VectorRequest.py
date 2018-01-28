@@ -110,13 +110,13 @@ class VectorRequest:
             res = 0
         return res
 
-    def full_ranked_vector_request(self, request, measure = cos_similarity):
+    def full_ranked_vector_request(self, request, number, measure = cos_similarity):
         weights = self.request_tf_idf_weights(self.index_request(request))
         res = [(x, measure(self, x, request, weights)) for x in self.allDocuments]
         res = [x for x in res if x[1] > 0]
         res = sorted(res, key=lambda x: x[1])[::-1]
         try:
-            res = res[:10]
+            res = res[:number]
         except IndexError:
             pass
         return res
@@ -129,7 +129,7 @@ if __name__ == "__main__":
     request = VectorRequest(collection)
 
     #request.all_weights()
-    request.normalized_tf_weights()
+    request.all_weights()
 
     #print(request.index_weights)
     #test_weights = request.request_weights(request.index_request("cat"))
@@ -138,7 +138,7 @@ if __name__ == "__main__":
 
     #print(request.cos_similarity(1160, "test cat"))
 
-    print(request.full_ranked_vector_request("List all articles on EL1 and ECL (EL1 may be given as EL/1; I don't remember how they did it."))
+    print(request.full_ranked_vector_request("List all articles on EL1 and ECL (EL1 may be given as EL/1; I don't remember how they did it. What articles exist which deal with TSS (Time Sharing System), an operating system for IBM computers?", 10))
     #print(request.index_request("cat"))
 
 
