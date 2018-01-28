@@ -132,7 +132,7 @@ if __name__ == "__main__":
     # Collection choice
     collection_name = ""
     while collection_name not in ['CACM', 'CS276']:
-        collection_name = input("Choose a collection among 'CACM' and 'CS276'\n").upper()
+        collection_name = input("Choose a collection among 'CACM' and 'CS276'\n> ").upper()
 
     if collection_name == 'CS276':
         collection = CS276Collection()
@@ -145,6 +145,10 @@ if __name__ == "__main__":
     else:
         collection.constructIndex()
         collection.saveIndex()
+
+    doc_by_id = {}
+    for doc_name in collection.docId:
+        doc_by_id[collection.docId[doc_name]] = doc_name
 
     # Initiate vector request
     request = VectorRequest(collection)
@@ -159,7 +163,21 @@ if __name__ == "__main__":
 
     #print(request.cos_similarity(1160, "test cat"))
 
-    print(request.full_ranked_vector_request("Interested in articles on robotics, motion planning particularly the geometric and combinatorial aspects.  We are not interested in the dynamics of arm motion."))
+    #print(request.full_ranked_vector_request("Interested in articles on robotics, motion planning particularly the geometric and combinatorial aspects.  We are not interested in the dynamics of arm motion."))
     #print(request.index_request("cat"))
+
+    while True:
+        query = input("Please enter your query:\n> ")
+        if '!' in query:
+            print("Exiting...")
+            break
+        response = request.full_ranked_vector_request(query)
+
+        if response == []:
+            print("No results found. Try being less specific. Some of the terms you looked for might not exist.")
+        elif response is not None:
+            print(f"Request found in {len(response)} documents:")
+            for doc_and_measure in response:
+                print(f"{doc_by_id[doc_and_measure[0]]} with measure {doc_and_measure[1]}")
 
 

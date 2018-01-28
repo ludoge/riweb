@@ -325,7 +325,7 @@ if __name__ == "__main__":
     # Collection choice
     collection_name = ""
     while collection_name not in ['CACM', 'CS276']:
-        collection_name = input("Choose a collection among 'CACM' and 'CS276'\n").upper()
+        collection_name = input("Choose a collection among 'CACM' and 'CS276'\n> ").upper()
 
     if collection_name == 'CS276':
         collection = CS276Collection()

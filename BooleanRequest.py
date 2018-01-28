@@ -72,7 +72,7 @@ if __name__ == "__main__":
     # Collection choice
     collection_name = ""
     while collection_name not in ['CACM', 'CS276']:
-        collection_name = input("Choose a collection among 'CACM' and 'CS276'\n").upper()
+        collection_name = input("Choose a collection among 'CACM' and 'CS276'\n> ").upper()
 
     if collection_name == 'CS276':
         collection = CS276Collection()
@@ -86,6 +86,10 @@ if __name__ == "__main__":
         collection.constructIndex()
         collection.saveIndex()
 
+    doc_by_id = {}
+    for doc_name in collection.docId:
+        doc_by_id[collection.docId[doc_name]] = doc_name
+
     # Initiate boolean request
     request = BooleanRequest(collection)
     #print(request.simpleRequest(0))
@@ -94,7 +98,7 @@ if __name__ == "__main__":
     #print(request.parseRequest(["NOT",["AND",[[0], [1], [2]]]]))
     #print(request.parseRequest(request.parseInput("NOT AND 0 OR 1 2")))
     while True:
-        query = input("Please enter your query in Polish notation:\n")
+        query = input("Please enter your query in Polish notation:\n> ")
         if '!' in query:
             print("Exiting...")
             break
@@ -107,5 +111,7 @@ if __name__ == "__main__":
         if response == []:
             print("No results found. Try being less specific. Some of the terms you looked for might not exist.")
         elif response is not None:
-            print(f"Request found in {len(response)} documents: {response}\n")
+            print(f"Request found in {len(response)} documents:")
+            for doc_and_measure in response:
+                print(doc_by_id[doc_and_measure])
 
