@@ -3,6 +3,7 @@ import string
 import os
 from itertools import groupby
 from threading import Thread, RLock
+from queue import Queue
 
 
 def intToVBCode(number):
@@ -267,28 +268,88 @@ class CS276Collection(Collection):
 
         print("Generating index for block " + str(blockID) + "...")
 
-        # Loading all documents of the current block in memory
+        list_after_mapper = []
+        docLen = self.docLen
+        docId = self.docId
+        termLen = self.termLen
+        termId = self.termId
+
+        locker_list = RLock()
+        locker_doc = RLock()
+        locker_term = RLock()
+
+        class Mapper(Thread):
+
+            def __init__(self, documentsNames):
+                super().__init__()
+                self.tasks = documentsNames
+                self.daemon = True
+                self.start()
+
+            def run(self):
+                nonlocal list_after_mapper, docLen, docId, termLen, termId, common_words
+                while True:
+                    documentName = self.tasks.get()
+                    try:
+                        # Open the document
+                        documentFile = open("Data/CS276/pa1-data/" + str(blockID) + "/" + documentName, mode="r")
+                        documentContent = documentFile.read().replace("\n", " ")
+                        documentFile.close()
+                        # Add this document's name to the list of doc id
+                        with locker_doc:
+                            doc_id = docLen
+                            docId[str(blockID) + "/" + documentName] = doc_id
+                            docLen += 1
+                        # Tokenize document content
+                        documentTokens = nltk.wordpunct_tokenize(documentContent)
+                        documentTokens = [x for x in documentTokens if not x in common_words]
+                        for token in documentTokens:
+                            if token in termId:
+                                term_id = termId[token]
+                            else:
+                                with locker_term:
+                                    term_id = termLen
+                                    termLen += 1
+                                    termId[token] = term_id
+                            with locker_list:
+                                list_after_mapper.append((term_id, doc_id))
+                    except Exception as e:
+                        # An exception happened in this thread
+                        print(e)
+                    finally:
+                        # Mark this task as done, whether an exception happened or not
+                        self.tasks.task_done()
+
+        class MapperPool:
+
+            """ Pool of threads consuming tasks from a queue """
+            def __init__(self, num_threads):
+                self.tasks = Queue(num_threads)
+                for _ in range(num_threads):
+                    Mapper(self.tasks)
+
+            def add_task(self, documentName):
+                """ Add a task to the queue """
+                self.tasks.put(documentName)
+
+            def wait_completion(self):
+                """ Wait for completion of all the tasks in the queue """
+                self.tasks.join()
+
+
+        # Loading all documents of the current block in a mapper
         documentsNames = os.listdir("Data/CS276/pa1-data/" + str(blockID))
+        mapper_pool = MapperPool(5)
         for name in documentsNames:
-            documentFile = open("Data/CS276/pa1-data/" + str(blockID) + "/" + name, mode="r")
-            documentContent = documentFile.read().replace("\n"," ")
-            documentFile.close()
-            # Add this document's name to the list of doc id
-            docId = self.docLen
-            self.docId[str(blockID) + "/" + name] = docId
-            self.docLen += 1
-            # Tokenize document content
-            documentTokens = nltk.wordpunct_tokenize(documentContent)
-            documentTokens = [x for x in documentTokens if not x in common_words]
-            for token in documentTokens:
-                if token in self.termId:
-                    termId = self.termId[token]
-                else:
-                    termId = self.termLen
-                    self.termLen += 1
-                    self.termId[token] = termId
-                self.list.append((termId, docId))
-        self.list.sort()
+            mapper_pool.add_task(name)
+        mapper_pool.wait_completion()
+
+        self.docLen = docLen
+        self.termLen = termLen
+
+        list_after_mapper.sort()
+
+        self.list = list_after_mapper
 
         # Creating inverted index
         self.invertedIndex = [(key, [x[1] for x in group]) for key, group in groupby(self.list, key=lambda x: x[0])]
