@@ -2,6 +2,7 @@ import nltk
 import string
 import os
 from itertools import groupby
+from threading import Thread, RLock
 
 
 def intToVBCode(number):
@@ -34,21 +35,6 @@ def VBCodeToFirstInt(file):
     return value
 
 
-def VBCodeToInt(bytesArray):
-    """ Convertit un bytearray représentant une suite de nombres codés en VB code pour retourner une liste d'entier """
-    result = []
-    value = 0
-    for i in range(len(bytesArray)):
-        byte = bytesArray.pop(0)
-        if byte < 128:
-            value = value * 128 + byte
-        else:
-            value = value * 128 + (byte - 128)
-            result.append(value)
-            value = 0
-    return result
-
-
 class Collection:
     """Classe pour manipuler des collections (on pourra faire hériter d'autres classes de celle-ci pour s'adapter au
     format propre à chaque collection)."""
@@ -75,9 +61,8 @@ class Collection:
     def _indexToBinary(self, file):
         """ Convertit l'index inversé en variable byte code pour une enregistrement avec compression. """
 
-        vbcode = bytearray([])
-
         for indexTerm in self.invertedIndex:
+            vbcode = bytearray([])
             term_code = intToVBCode(indexTerm[0])
             previous_posting_id = 0
             for posting in indexTerm[1]:
@@ -89,10 +74,7 @@ class Collection:
             # commence la liste de postings du terme suivant
             vbcode.extend(intToVBCode(len(indexTerm[1])))
             vbcode.extend(term_code)
-
-        file.write(vbcode)
-
-        del vbcode
+            file.write(vbcode)
 
     def _binaryToIndex(self, file):
         """ Lit un fichier encodé en variable byte code pour récupérer l'index inversé. """
@@ -313,23 +295,73 @@ class CS276Collection(Collection):
         self.invertedIndex = [(y[0], sorted(set([(z, y[1].count(z)) for z in y[1]]))) for y in self.invertedIndex]
         print("Index for block " + str(blockID) + " generated.")
 
-        # Write index in Hard Drive
-        self.writeIndex(blockID)
-        print("Index for block " + str(blockID) + " saved.")
-
-
         # Release memory
         del documentsNames
         self.list = []
+
+    def saveBlockIndex(self, blockID):
+        if self.indexLocation is not None:
+            # Save invertedIndex in variable byte code
+            with open(self.indexLocation + "/" + str(blockID), mode="wb") as file:
+                self._indexToBinary(file)
+        else:
+            print("No location specified to save inverted index for block " + str(blockID) + ".")
+
+        # Release memory
         self.invertedIndex = []
 
-    def writeIndex(self, blockID):
-        with open(self.indexLocation + "/" + str(blockID), mode="w+") as file:
-            for indexTerm in self.invertedIndex:
-                file.write(str(indexTerm[0]) + " ")
-                for posting in indexTerm[1]:
-                    file.write(str(posting[0]) + "-" + str(posting[1]) + " ")
-                file.write("\n")
+    def mergeBlockIndex(self, blockIndexFiles):
+
+        # Reading the first element from each index
+        currentTermId = {}
+        currentPostings = {}
+        for blockID in blockIndexFiles.keys():
+            nbPostings = VBCodeToFirstInt(blockIndexFiles[blockID])
+            if nbPostings is not None:
+                currentTermId[blockID] = VBCodeToFirstInt(blockIndexFiles[blockID])
+                currentPostings[blockID] = []
+                previousPostingId = 0
+                for i in range(nbPostings):
+                    postingId = VBCodeToFirstInt(blockIndexFiles[blockID]) + previousPostingId
+                    postingCount = VBCodeToFirstInt(blockIndexFiles[blockID])
+                    currentPostings[blockID].append((postingId, postingCount))
+                    previousPostingId = postingId
+            else:
+                # Closing the block if not any term id is found
+                print("Block " + str(blockID) + " has been closed.")
+                blockIndexFiles[blockID].close()
+                del blockIndexFiles[blockID]
+                del currentTermId[blockID]
+                del currentPostings[blockID]
+
+        # Merging all elements with the smallest term id and reading the next element of those blocks
+        # (or close the file if it was the last element)
+        termId = 0
+        while termId < self.termLen:
+            blocksToMerge = [blockID for blockID in currentTermId.keys() if currentTermId[blockID] == termId]
+            self.invertedIndex.append([termId, []])
+            for blockID in blocksToMerge:
+                # Add postings from this block for this term id to the list
+                self.invertedIndex[termId][1].extend(currentPostings[blockID])
+                # Reading the next line or closing this block.
+                nbPostings = VBCodeToFirstInt(blockIndexFiles[blockID])
+                if nbPostings is not None:
+                    currentTermId[blockID] = VBCodeToFirstInt(blockIndexFiles[blockID])
+                    currentPostings[blockID] = []
+                    previousPostingId = 0
+                    for i in range(nbPostings):
+                        postingId = VBCodeToFirstInt(blockIndexFiles[blockID]) + previousPostingId
+                        postingCount = VBCodeToFirstInt(blockIndexFiles[blockID])
+                        currentPostings[blockID].append((postingId, postingCount))
+                        previousPostingId = postingId
+                else:
+                    # Closing the block
+                    print("Block " + str(blockID) + " has been closed.")
+                    blockIndexFiles[blockID].close()
+                    del blockIndexFiles[blockID]
+                    del currentTermId[blockID]
+                    del currentPostings[blockID]
+            termId += 1
 
     def constructIndex(self):
 
@@ -337,53 +369,18 @@ class CS276Collection(Collection):
         for blockID in range(10):
             self.parseBlock(blockID)
 
-        # Open file to write the final inverted index and each partial reverted index
-        # indexFile = open(self.indexLocation + "/invertedIndex", mode="w+") /!\
-        blockIndexFile = {}
-        for blockID in range(10):
-            blockIndexFile[blockID] = open(self.indexLocation + "/" + str(blockID), mode="r")
+            # Write index in Hard Drive
+            self.saveBlockIndex(blockID)
+            print("Index for block " + str(blockID) + " saved.")
 
-        # Reading line by line each partial reverted index and merging all lines with the smallest term id
-        # blockIndexFileOpen = range(10)
+        # Open files to merge all inverted index
+        blockIndexFiles = {}
+        for blockID in range(10):
+            blockIndexFiles[blockID] = open(self.indexLocation + "/" + str(blockID), mode="rb")
+
+        # Merging
         print("Merging index from all blocks...")
-
-        # Reading the first line from each index
-        currentLine = {}
-        currentTermId = {}
-        currentPostings = {}
-        for blockID in range(10):
-            currentLine[blockID] = blockIndexFile[blockID].readline().replace("\n", "").split(" ")
-            currentTermId[blockID] = int(currentLine[blockID][0])
-            currentPostings[blockID] = [(int(posting.split("-")[0]), int(posting.split("-")[1]))
-                                        for posting in currentLine[blockID][1:] if posting != '']
-
-        # Merging all lines with the smallest term id and reading the next line of those lines
-        # (or close the file if it was the last line)
-        termId = 0
-        while termId < self.termLen:
-            blocksToMerge = [blockID for blockID in currentTermId.keys() if currentTermId[blockID] == termId]
-            self.invertedIndex.append([termId, []])
-            for blockID in blocksToMerge:
-                # Adding the invert index of this block for this term id to elements the string of doc id already found
-                # for this term id.
-                self.invertedIndex[termId][1] += currentPostings[blockID]
-                # Reading the next line or closing this block.
-                currentLine[blockID] = blockIndexFile[blockID].readline().replace("\n", "").split(" ")
-                if currentLine[blockID] == [""]:
-                    # Closing the block
-                    print("Block " + str(blockID) + " has been closed.")
-                    blockIndexFile[blockID].close()
-                    del blockIndexFile[blockID]
-                    del currentTermId[blockID]
-                    del currentPostings[blockID]
-                    del currentLine[blockID]
-                else:
-                    # Reading next line
-                    currentTermId[blockID] = int(currentLine[blockID][0])
-                    currentPostings[blockID] = [(int(posting.split("-")[0]), int(posting.split("-")[1]))
-                                                for posting in currentLine[blockID][1:] if posting != '']
-            termId += 1
-
+        self.mergeBlockIndex(blockIndexFiles)
         print("Index merged.")
 
 
