@@ -6,6 +6,10 @@ from threading import Thread, RLock
 from queue import Queue
 
 
+nbThreadMap = 2
+nbThreadReduce = 2
+
+
 def intToVBCode(number):
     """ Convertit un entier en un tableau d'octets correspondant à son variable byte code """
     if not isinstance(number, int):
@@ -262,6 +266,10 @@ class CS276Collection(Collection):
 
     def parseBlock(self, blockID):
 
+        global nbThreadMap, nbThreadReduce
+
+        self.invertedIndex = []
+
         # Common words list
         common_words = open("Data/CACM/common_words", mode='r').read().splitlines()
         common_words += list(string.punctuation)
@@ -277,6 +285,7 @@ class CS276Collection(Collection):
         locker_list = RLock()
         locker_doc = RLock()
         locker_term = RLock()
+        locker_index = RLock()
 
         class Mapper(Thread):
 
@@ -304,18 +313,15 @@ class CS276Collection(Collection):
                         documentTokens = nltk.wordpunct_tokenize(documentContent)
                         documentTokens = [x for x in documentTokens if not x in common_words]
                         for token in documentTokens:
-                            if token in termId:
-                                term_id = termId[token]
-                            else:
-                                with locker_term:
+                            with locker_term:
+                                if token in termId:
+                                    term_id = termId[token]
+                                else:
                                     term_id = termLen
                                     termLen += 1
                                     termId[token] = term_id
                             with locker_list:
                                 list_after_mapper.append((term_id, doc_id))
-                    except Exception as e:
-                        # An exception happened in this thread
-                        print(e)
                     finally:
                         # Mark this task as done, whether an exception happened or not
                         self.tasks.task_done()
@@ -336,29 +342,74 @@ class CS276Collection(Collection):
                 """ Wait for completion of all the tasks in the queue """
                 self.tasks.join()
 
-
         # Loading all documents of the current block in a mapper
         documentsNames = os.listdir("Data/CS276/pa1-data/" + str(blockID))
-        mapper_pool = MapperPool(5)
+        mapper_pool = MapperPool(nbThreadMap)
         for name in documentsNames:
             mapper_pool.add_task(name)
         mapper_pool.wait_completion()
 
+        self.docId = docId
         self.docLen = docLen
+        self.termId = termId
         self.termLen = termLen
 
         list_after_mapper.sort()
+        list_before_reducer = [(key, [x[1] for x in group]) for key, group in groupby(list_after_mapper, key=lambda x: x[0])]
+        invertedIndex = []
 
-        self.list = list_after_mapper
+        class Reducer(Thread):
+
+            def __init__(self, postings):
+                super().__init__()
+                self.tasks = postings
+                self.daemon = True
+                self.start()
+
+            def run(self):
+                nonlocal invertedIndex
+                while True:
+                    postings_list = self.tasks.get()
+                    try:
+                        with locker_index:
+                            invertedIndex.append(
+                                (postings_list[0], sorted(set([(z, postings_list[1].count(z)) for z in postings_list[1]]))))
+                    finally:
+                        # Mark this task as done, whether an exception happened or not
+                        self.tasks.task_done()
+
+        class ReducerPool:
+
+            """ Pool of threads consuming tasks from a queue """
+
+            def __init__(self, num_threads):
+                self.tasks = Queue(num_threads)
+                for _ in range(num_threads):
+                    Reducer(self.tasks)
+
+            def add_task(self, postings):
+                """ Add a task to the queue """
+                self.tasks.put(postings)
+
+            def wait_completion(self):
+                """ Wait for completion of all the tasks in the queue """
+                self.tasks.join()
+
+        reducer_pool = ReducerPool(nbThreadReduce)
+        for postings in list_before_reducer:
+            reducer_pool.add_task(postings)
+        reducer_pool.wait_completion()
 
         # Creating inverted index
-        self.invertedIndex = [(key, [x[1] for x in group]) for key, group in groupby(self.list, key=lambda x: x[0])]
-        self.invertedIndex = [(y[0], sorted(set([(z, y[1].count(z)) for z in y[1]]))) for y in self.invertedIndex]
+        invertedIndex.sort()
+        self.invertedIndex = invertedIndex
+
         print("Index for block " + str(blockID) + " generated.")
 
         # Release memory
         del documentsNames
-        self.list = []
+        del list_after_mapper
+        del list_before_reducer
 
     def saveBlockIndex(self, blockID):
         if self.indexLocation is not None:
@@ -389,8 +440,8 @@ class CS276Collection(Collection):
                     previousPostingId = postingId
             else:
                 # Closing the block if not any term id is found
-                print("Block " + str(blockID) + " has been closed.")
                 blockIndexFiles[blockID].close()
+                print("Block " + str(blockID) + " has been closed.")
                 del blockIndexFiles[blockID]
                 del currentTermId[blockID]
                 del currentPostings[blockID]
@@ -417,8 +468,8 @@ class CS276Collection(Collection):
                         previousPostingId = postingId
                 else:
                     # Closing the block
-                    print("Block " + str(blockID) + " has been closed.")
                     blockIndexFiles[blockID].close()
+                    print("Block " + str(blockID) + " has been closed.")
                     del blockIndexFiles[blockID]
                     del currentTermId[blockID]
                     del currentPostings[blockID]
@@ -469,4 +520,3 @@ if __name__ == "__main__":
         print("Index saved.")
         collection.loadIndex()
         print("Index loaded.")
-
