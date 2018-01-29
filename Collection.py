@@ -20,6 +20,20 @@ def intToVBCode(number):
     return bytearray(result)
 
 
+def VBCodeToFirstInt(file):
+    """ Pour un fichier binaire en lecture, récupère le premier nombre codé en VB code et renvoit l'entier
+     correspondant """
+    value = 0
+    byte = file.read(1)
+    if byte==b'':
+        return None
+    while int.from_bytes(byte, byteorder='big') < 128:
+        value = 128 * value + int.from_bytes(byte, byteorder='big')
+        byte = file.read(1)
+    value = 128 * value + (int.from_bytes(byte, byteorder='big') - 128)
+    return value
+
+
 def VBCodeToInt(bytesArray):
     """ Convertit un bytearray représentant une suite de nombres codés en VB code pour retourner une liste d'entier """
     result = []
@@ -33,18 +47,6 @@ def VBCodeToInt(bytesArray):
             result.append(value)
             value = 0
     return result
-
-
-def VBCodeToFirstInt(bytesArray):
-    """ Même chose que VBCodeToInt mais ne donne que le premier entier """
-    value = 0
-    byte = bytesArray.pop(0)
-    while byte < 128:
-        value = value * 128 + byte
-        byte = bytesArray.pop(0)
-    value = value * 128 + (byte - 128)
-    return value
-
 
 
 class Collection:
@@ -94,18 +96,18 @@ class Collection:
 
     def _binaryToIndex(self, file):
         """ Lit un fichier encodé en variable byte code pour récupérer l'index inversé. """
-        bytesArray = bytearray(file.read())
-        while len(bytesArray) > 0:
-            nbPostings = VBCodeToFirstInt(bytesArray)
-            termId = VBCodeToFirstInt(bytesArray)
+        nbPostings = VBCodeToFirstInt(file)
+        while nbPostings is not None:
+            termId = VBCodeToFirstInt(file)
             postings = []
             previousPostingId = 0
             for i in range(nbPostings):
-                postingId = VBCodeToFirstInt(bytesArray) + previousPostingId
-                postingCount = VBCodeToFirstInt(bytesArray)
+                postingId = VBCodeToFirstInt(file) + previousPostingId
+                postingCount = VBCodeToFirstInt(file)
                 postings.append((postingId, postingCount))
                 previousPostingId = postingId
             self.invertedIndex.append((termId, postings))
+            nbPostings = VBCodeToFirstInt(file)
 
     def saveIndex(self):
         """ Enregistre l'indexe inversé sur disque-dur. """
@@ -399,9 +401,14 @@ if __name__ == "__main__":
 
     if os.path.isfile('index' + collection_name + '/docId') and os.path.isfile('index' + collection_name + '/termId') \
             and os.path.isfile('index' + collection_name + '/invertedIndex'):
+        print("Start loading...")
         collection.loadIndex()
+        print("Index loaded.")
     else:
         collection.constructIndex()
+        print("Index constructed.")
         collection.saveIndex()
+        print("Index saved.")
         collection.loadIndex()
+        print("Index loaded.")
 
