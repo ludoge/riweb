@@ -56,6 +56,31 @@ class Evaluation():
 
         return recall_points, precision_points
 
+    def precision_recall_points_20(self, results, expected_results, docLen):
+        recall_points = []
+        precision_points = []
+        curr_recall = 0
+        n = len(results)
+        i = 0
+        while curr_recall < 1 and i < n:
+            new_recall = self.recall_measure(results[:i], expected_results)
+            if new_recall >= curr_recall + 1/20:
+                curr_recall += 1/20
+                recall_points.append(curr_recall)
+                precision_points.append(self.precision_measure(results[:i], expected_results))
+            i += 1
+        while len(recall_points) < 21:
+            recall_points.append((len(recall_points)+1)/20)
+            precision_points.append(1/docLen)
+
+        # Interpolation
+        #for i in range(len(precision_points)):
+        #    for j in range(i, len(precision_points)):
+        #        if precision_points[i] < precision_points[j]:
+        #            precision_points[i] = precision_points[j]
+
+        return recall_points, precision_points
+
     def plot_precision_recall(self, precision_recall_points):
         plt.plot(precision_recall_points[0], precision_recall_points[1])
 
@@ -70,6 +95,7 @@ class Evaluation():
 
     def F1_measure(self, results, expected_results):
         return self.F_measure(results, expected_results, 1/2)
+
 
 if __name__ == '__main__':
     collection = Collection.CACMCollection()
@@ -108,9 +134,20 @@ if __name__ == '__main__':
     plt.plot(recall_points, precision_points, 'ro')
     plt.show()
     """
-    query1 = collection.queryTest()[44]
-    print("Start of query")
-    all_results = [r[0] for r in v.full_ranked_vector_request(query1.query, collection.docLen)]
-    print("got results")
-    e.plot_precision_recall(e.precision_recall_points(all_results, query1.results, collection.docLen))
+    query1 = collection.queryTest()[0]
+    prec, rec = [0]*21, [0]*21
+    for query in collection.queryTest():
+        print(query.query)
+        all_results = [r[0] for r in v.full_ranked_vector_request(query.query, collection.docLen)]
+        new_rec, new_prec = e.precision_recall_points_20(all_results, query.results, collection.docLen)
+        for i in range(len(prec)):
+            prec[i] += new_prec[i]
+            rec[i] += new_rec[i]
+    n = len(collection.queryTest())
+    prec = [x/n for x in prec]
+    rec = [x/n for x in rec]
+
+    e.plot_precision_recall((rec, prec))
+
+    #e.plot_precision_recall(e.precision_recall_points_20(all_results, query1.results, collection.docLen))
     plt.show()
