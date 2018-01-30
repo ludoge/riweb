@@ -75,7 +75,10 @@ if __name__ == '__main__':
     collection = Collection.CACMCollection()
     collection.loadIndex()
     v = VectorRequest.VectorRequest(collection)
-    v.all_weights()
+    try:
+        v.load_weights()
+    except:
+        v.all_weights()
     e = Evaluation(collection, v)
     #
     #e.parse_requests()
@@ -106,7 +109,8 @@ if __name__ == '__main__':
     plt.show()
     """
     query1 = collection.queryTest()[44]
-
+    print("Start of query")
     all_results = [r[0] for r in v.full_ranked_vector_request(query1.query, collection.docLen)]
+    print("got results")
     e.plot_precision_recall(e.precision_recall_points(all_results, query1.results, collection.docLen))
     plt.show()
