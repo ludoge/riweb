@@ -1,6 +1,8 @@
+from collections import deque
 from Collection import *
+import datetime
 from functools import reduce
-
+import logging
 
 class BooleanRequest:
     def __init__(self, Collection):
@@ -13,58 +15,21 @@ class BooleanRequest:
         except TypeError:
             return self.orRequest([termId])
 
-    def notRequest(self, terms):
-        posting = self.parseRequest(terms)
-        return [x for x in self.allTerms if x not in posting]
-
-    def andRequest(self, terms):
-        #print("Terms :")
-        #print(terms)
-        postings = [self.parseRequest(term) for term in terms]
-        #print(postings)
-        return sorted(reduce(set.intersection, [set(item) for item in postings]))
-
-    def orRequest(self, terms):
-        postings = [self.parseRequest(term) for term in terms]
-        return sorted(reduce(set.union, [set(item) for item in postings]))
-
-    def parseRequest(self, request):
-        #print("Request: ")
-        #print(request)
-        if request == []:
-            return []
-        elif len(request)==1:
-            return self.simpleRequest(request[0])
-        elif request[0] == "NOT":
-            return self.notRequest(request[1])
-        elif request[0] == "AND":
-            return self.andRequest(request[1])
-        elif request[0] == "OR":
-            return self.orRequest(request[1])
-            print(request[1])
+    def polishNotationRequest(self, tokens):
+        token = tokens.popleft().lower()
+        if token == 'or':
+            return list(set(self.polishNotationRequest(tokens) + self.polishNotationRequest(tokens)))
+        if token == 'and':
+            a, b = self.polishNotationRequest(tokens), self.polishNotationRequest(tokens)
+            return list(set([x for x in a if x in b]))
+        if token == 'not':
+            a = self.polishNotationRequest(tokens)
+            return [x for x in range(1, self.collection.docLen) if x not in a]
         else:
-            return self.simpleRequest(request[0])
-
-    def parseInput(self, userInput):
-        n = len(userInput)
-        if userInput[:2].lower() == "or":
-            return ["OR", self.parseInput(userInput[2:])]
-        elif userInput[:3].lower() == "and":
-            return ["AND", self.parseInput(userInput[3:])]
-        elif userInput[:3].lower() == "not":
-            return ["NOT", self.parseInput(userInput[3:])]
-        elif userInput[0] == " ":
-            return self.parseInput(userInput[1:])
-        else:
-            split = userInput.split(" ")
             try:
-                first = [self.collection.termId[split[0].lower()]]
+                return self.simpleRequest(self.collection.termId[token.lower()])
             except KeyError:
-                first = []
-            if len(split) == 1:
-                return [first]
-            else:
-                return [first] + [self.parseInput(userInput[len(split[0]):])]
+                return []
 
 
 if __name__ == "__main__":
@@ -99,11 +64,13 @@ if __name__ == "__main__":
     #print(request.parseRequest(request.parseInput("NOT AND 0 OR 1 2")))
     while True:
         query = input("Please enter your query in Polish notation:\n> ")
+        start_time = datetime.datetime.now()
         if '!' in query:
             print("Exiting...")
             break
         try:
-            response = request.parseRequest(request.parseInput(query))
+            response = request.polishNotationRequest(deque(query.split(" ")))
+            # response = request.parseRequest(request.parseInput(query))
         except(IndentationError):
             response = None
             print("Invalid request. Valid operations are 'or', 'and' and 'not'. Enter '!' to quit.")
@@ -111,7 +78,7 @@ if __name__ == "__main__":
         if response == []:
             print("No results found. Try being less specific. Some of the terms you looked for might not exist.")
         elif response is not None:
-            print(f"Request found in {len(response)} documents:")
+            print(f"Request found in {len(response)} documents in {(datetime.datetime.now()-start_time).seconds}s:")
             for doc_and_measure in response:
                 print(doc_by_id[doc_and_measure])
 
