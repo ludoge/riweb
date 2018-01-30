@@ -1,3 +1,4 @@
+import datetime
 import nltk
 import string
 import os
@@ -514,9 +515,10 @@ if __name__ == "__main__":
         collection.loadIndex()
         print("Index loaded.")
     else:
+        start_time = datetime.datetime.now()
         collection.constructIndex()
-        print("Index constructed.")
+        print(f"Index constructed. Time elapsed: {(datetime.datetime.now()-start_time).seconds}s")
         collection.saveIndex()
-        print("Index saved.")
+        print(f"Index saved. Time elapsed: {(datetime.datetime.now()-start_time).seconds}s")
         collection.loadIndex()
-        print("Index loaded.")
+        print(f"Index loaded.  Time elapsed: {(datetime.datetime.now()-start_time).seconds}s")
