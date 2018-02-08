@@ -2,6 +2,8 @@ import datetime
 import nltk
 import string
 import os
+import math
+import matplotlib.pyplot as plt
 from itertools import groupby
 from threading import Thread, RLock
 from queue import Queue
@@ -156,6 +158,87 @@ class CACMCollection(Collection):
     def __init__(self, indexLocation = "indexCACM"):
         Collection.__init__(self, indexLocation)
 
+    def answerQuestion(self):
+        """Pour répondre aux questions concernant le vocabulaire et les tokens de la collection."""
+
+        common_words = self.commonWords
+        nb_documents = 0
+        tokens = []
+        vocabulary_frequency = {}
+        half_tokens = []
+        half_vocabulary_frequency = {}
+
+        with open("Data/CACM/cacm.all", mode="r") as all:
+            readLine = False
+            for line in all:
+                if line[:1] == ".":
+                    readLine = False
+                if readLine:
+                    new_tokens = [x for x in nltk.wordpunct_tokenize(line.lower()) if x not in common_words]
+                    tokens += new_tokens
+                    if nb_documents % 2 == 1:
+                        half_tokens += new_tokens
+                if line[:2] == ".I":
+                    nb_documents += 1
+                if line[:2] in [".T", ".W", ".K"]:
+                    readLine = True
+
+        for token in tokens:
+            if token not in vocabulary_frequency:
+                vocabulary_frequency[token] = 1
+            else:
+                vocabulary_frequency[token] += 1
+
+        nb_tokens = len(tokens)
+        size_vocabulary = len(vocabulary_frequency)
+
+        for token in half_tokens:
+            if token not in half_vocabulary_frequency:
+                half_vocabulary_frequency[token] = 1
+            else:
+                half_vocabulary_frequency[token] += 1
+
+        nb_half_tokens = len(half_tokens)
+        size_half_vocabulary = len(half_vocabulary_frequency)
+
+        b = math.log(size_vocabulary / size_half_vocabulary) / math.log(nb_tokens / nb_half_tokens)
+        k = size_vocabulary/(math.pow(nb_tokens, b))
+
+        token_estimation = 1000000
+        estimated_size = int(k * math.pow(token_estimation, b))
+
+        print('\nExercice 1')
+        print(f'{nb_tokens} tokens found in this collection.')
+
+        print('\nExercice 2')
+        print(f'{size_vocabulary} words in the vocabulary.')
+
+        print('\nExercice 3')
+        print('For half of the collection, we get:')
+        print(f'{nb_half_tokens} tokens')
+        print(f'{size_half_vocabulary} words in the vocabulary.')
+        print("Parameters for Heaps' law are therefore:")
+        print(f"    k = {k}         b = {b}")
+
+        print('\nExercice 4')
+        print(f"With Heaps' law, vocabulary size for {token_estimation} tokens would be {estimated_size} words.")
+
+        frequencies = list(vocabulary_frequency.values())
+        frequencies.sort()
+        frequencies = frequencies[::-1]
+        ranks = range(1, len(frequencies) + 1)
+
+        logfrequencies = [math.log(x) for x in frequencies]
+        logranks = [math.log(x) for x in ranks]
+
+        f, (ax1, ax2) = plt.subplots(2, 1)
+        ax1.plot(ranks, frequencies)
+        ax1.set_title('Frequencies in relation to Ranks')
+        ax2.scatter(logranks, logfrequencies)
+        ax2.set_title('log(Frequencies) in relation to log(Ranks)')
+
+        plt.show()
+
     def constructIndex(self):
         """Constuit l'indexe inversé de la collection CACM."""
 
@@ -264,6 +347,86 @@ class CS276Collection(Collection):
 
     def __init__(self, indexLocation = "indexCS276"):
         Collection.__init__(self, indexLocation)
+
+    def answerQuestion(self):
+        """Pour répondre aux questions concernant le vocabulaire et les tokens de la collection."""
+
+        common_words = self.commonWords
+        nb_documents = 0
+        tokens = []
+        vocabulary_frequency = {}
+        half_tokens = []
+        half_vocabulary_frequency = {}
+
+        for blockID in range(10):
+            documentsNames = os.listdir("Data/CS276/pa1-data/" + str(blockID))
+            for documentName in documentsNames:
+                with open("Data/CS276/pa1-data/" + str(blockID) + "/" + documentName, mode="r") as documentFile:
+                    nb_documents += 1
+                    documentContent = documentFile.read().replace("\n", " ")
+                    new_tokens = [x for x in nltk.wordpunct_tokenize(documentContent.lower()) if x not in common_words]
+                    tokens += new_tokens
+                    if nb_documents % 2 == 1:
+                        half_tokens += new_tokens
+
+        for token in tokens:
+            if token not in vocabulary_frequency:
+                vocabulary_frequency[token] = 1
+            else:
+                vocabulary_frequency[token] += 1
+
+        nb_tokens = len(tokens)
+        size_vocabulary = len(vocabulary_frequency)
+
+        for token in half_tokens:
+            if token not in half_vocabulary_frequency:
+                half_vocabulary_frequency[token] = 1
+            else:
+                half_vocabulary_frequency[token] += 1
+
+        nb_half_tokens = len(half_tokens)
+        size_half_vocabulary = len(half_vocabulary_frequency)
+
+        del half_tokens
+        del half_vocabulary_frequency
+
+        b = math.log(size_vocabulary / size_half_vocabulary) / math.log(nb_tokens / nb_half_tokens)
+        k = size_vocabulary/(math.pow(nb_tokens, b))
+
+        token_estimation = 1000000
+        estimated_size = int(k * math.pow(token_estimation, b))
+
+        print('\nExercice 1')
+        print(f'{nb_tokens} tokens found in this collection.')
+
+        print('\nExercice 2')
+        print(f'{size_vocabulary} words in the vocabulary.')
+
+        print('\nExercice 3')
+        print('For half of the collection, we get:')
+        print(f'{nb_half_tokens} tokens')
+        print(f'{size_half_vocabulary} words in the vocabulary.')
+        print("Parameters for Heaps' law are therefore:")
+        print(f"    k = {k}         b = {b}")
+
+        print('\nExercice 4')
+        print(f"With Heaps' law, vocabulary size for {token_estimation} tokens would be {estimated_size} words.")
+
+        frequencies = list(vocabulary_frequency.values())
+        frequencies.sort()
+        frequencies = frequencies[::-1]
+        ranks = range(1, len(frequencies) + 1)
+
+        logfrequencies = [math.log(x) for x in frequencies]
+        logranks = [math.log(x) for x in ranks]
+
+        f, (ax1, ax2) = plt.subplots(2, 1)
+        ax1.plot(ranks, frequencies)
+        ax1.set_title('Frequencies in relation to Ranks')
+        ax2.scatter(logranks, logfrequencies)
+        ax2.set_title('log(Frequencies) in relation to log(Ranks)')
+
+        plt.show()
 
     def parseBlock(self, blockID):
 
@@ -509,7 +672,13 @@ if __name__ == "__main__":
     else:
         collection = CACMCollection()
 
-    if os.path.isfile('index' + collection_name + '/docId') and os.path.isfile('index' + collection_name + '/termId') \
+    answer_questions = ""
+    while answer_questions not in ['Y', 'YES', 'N', 'NO']:
+        answer_questions = input("Do you want to answer the questions about collections ? (YES or NO)\n> ").upper()
+
+    if answer_questions in ['Y', 'YES']:
+        collection.answerQuestion()
+    elif os.path.isfile('index' + collection_name + '/docId') and os.path.isfile('index' + collection_name + '/termId') \
             and os.path.isfile('index' + collection_name + '/invertedIndex'):
         print("Start loading...")
         collection.loadIndex()
