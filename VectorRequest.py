@@ -23,11 +23,21 @@ class VectorRequest:
         postings = self.collection.invertedIndex[termId][1]
         df = len(postings)
         idf = log10(N/df)
-        norm = 0
+        for posting in postings:
+            docId = posting[0]
+            tf = posting[1]
+            self.index_weights[(termId, docId)] = tf*idf
+
+    def normalized_tf_idf_weights(self, termId):
+        N = self.collection.docLen
+        postings = self.collection.invertedIndex[termId][1]
+        df = len(postings)
+        idf = log10(N/df)
         for posting in postings:
             docId = posting[0]
             tf = posting[1]
             self.index_weights[(termId, docId)] = (1+log10(tf))*idf
+
 
     def normalized_tf_weights(self):
         for termId in self.allTerms:
@@ -51,7 +61,7 @@ class VectorRequest:
         request_terms = list(Counter(request_terms).items())
         return request_terms
 
-    def request_tf_idf_weights(self, request_terms):
+    def request_normalized_tf_idf_weights(self, request_terms):
         weights = {}
 
         N = self.collection.docLen
@@ -62,6 +72,20 @@ class VectorRequest:
             idf = log10(N/df)
 
             weights[term[0]] = (1+log10(tf))*idf
+
+        return weights
+
+    def request_tf_idf_weights(self, request_terms):
+        weights = {}
+
+        N = self.collection.docLen
+
+        for term in request_terms:
+            tf = term[1]
+            df = len(self.collection.invertedIndex[term[0]][1])
+            idf = log10(N/df)
+
+            weights[term[0]] = tf*idf
 
         return weights
 
@@ -78,7 +102,8 @@ class VectorRequest:
         return weights
 
     weight_types = {'tf_idf': (tf_idf_weights, request_tf_idf_weights),
-                    'normalized_tf': (normalized_tf_weights, request_normalized_tf_weights)}
+                    'normalized_tf': (normalized_tf_weights, request_normalized_tf_weights),
+                    'normalized_tf_idf': (normalized_tf_idf_weights, request_normalized_tf_idf_weights)}
 
     def all_weights(self):
         start_time = datetime.datetime.now()

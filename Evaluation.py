@@ -56,6 +56,31 @@ class Evaluation():
 
         return recall_points, precision_points
 
+    def precision_recall_points_20(self, results, expected_results, docLen):
+        recall_points = []
+        precision_points = []
+        curr_recall = 0
+        n = len(results)
+        i = 0
+        while curr_recall < 1 and i < n:
+            new_recall = self.recall_measure(results[:i], expected_results)
+            if new_recall >= curr_recall + 1/20:
+                curr_recall += 1/20
+                recall_points.append(curr_recall)
+                precision_points.append(self.precision_measure(results[:i], expected_results))
+            i += 1
+        while len(recall_points) < 21:
+            recall_points.append((len(recall_points)+1)/20)
+            precision_points.append(1/docLen)
+
+        # Interpolation
+        for i in range(len(precision_points)):
+            for j in range(i, len(precision_points)):
+                if precision_points[i] < precision_points[j]:
+                    precision_points[i] = precision_points[j]
+
+        return recall_points, precision_points
+
     def plot_precision_recall(self, precision_recall_points):
         plt.plot(precision_recall_points[0], precision_recall_points[1])
 
@@ -71,46 +96,70 @@ class Evaluation():
     def F1_measure(self, results, expected_results):
         return self.F_measure(results, expected_results, 1/2)
 
+    def global_prec_rec(self, vector_request):
+        prec, rec = [0] * 21, [0] * 21
+        for query in self.collection.queryTest():
+            all_results = [r[0] for r in vector_request.full_ranked_vector_request(query.query, collection.docLen)]
+            new_rec, new_prec = self.precision_recall_points_20(all_results, query.results, collection.docLen)
+            for i in range(len(prec)):
+                prec[i] += new_prec[i]
+                rec[i] += new_rec[i]
+        n = len(self.collection.queryTest())
+        prec = [x / n for x in prec]
+        rec = [x / n for x in rec]
+        return prec, rec
+
+    def average_precision(self, results, expected_results, docLen):
+        precision_points = []
+        curr_recall = 0
+        n = len(results)
+        i = 0
+        while curr_recall < 1 and i < n:
+            new_recall = self.recall_measure(results[:i], expected_results)
+            if new_recall >= curr_recall + 1 / 20:
+                curr_recall += 1 / 20
+                precision_points.append(self.precision_measure(results[:i], expected_results))
+            i += 1
+        while len(precision_points) < 21:
+            precision_points.append(1 / docLen)
+
+        # now the actual computation
+        result = 0
+        for precision in precision_points:
+            result += precision
+
+        result /= len(precision_points)
+        return result
+
+    def mean_average_precision(self, vector_request):
+        result = 0
+        for query in self.collection.queryTest():
+            all_results = [r[0] for r in vector_request.full_ranked_vector_request(query.query, collection.docLen)]
+            result += self.average_precision(all_results, query.results, collection.docLen)
+        result /= len(self.collection.queryTest())
+        return result
+
+
 if __name__ == '__main__':
     collection = Collection.CACMCollection()
-    collection.loadIndex()
+    try:
+        collection.loadIndex()
+    except:
+        collection.constructIndex()
+        collection.saveIndex()
     v = VectorRequest.VectorRequest(collection)
     try:
         v.load_weights()
     except:
         v.all_weights()
     e = Evaluation(collection, v)
-    #
-    #e.parse_requests()
-    #for r in e.requests.values():
-    #    print(v.full_ranked_vector_request(r))
-    #print([[r[0] for r in v.full_ranked_vector_request(q.query)] for q in collection.queryTest()[:2]])
-    #print([q.id for q in collection.queryTest()])
-    """
-    recall_points, precision_points = [], []
-    num_queries = len(collection.queryTest())
-    for number in range (3,16):
-        print(f"Evaluating precision and recall for k={number}")
-        avg_rec, avg_prec = 0, 0
-        for i in range(num_queries):
-            q = collection.queryTest()[i]
-            prec, rec = e.prec_rec_measure([r[0] for r in v.full_ranked_vector_request(q.query, number)], q.results)
-            print(prec, rec)
-            #recall_points.append(rec)
-            #precision_points.append(prec)
-            avg_rec += rec
-            avg_prec += prec
-        avg_rec /= num_queries
-        avg_prec /= num_queries
-        recall_points.append(avg_rec)
-        precision_points.append(avg_prec)
 
-    plt.plot(recall_points, precision_points, 'ro')
+    # precision-recall
+    points = e.global_prec_rec(v)
+    e.plot_precision_recall(points)
+
     plt.show()
-    """
-    query1 = collection.queryTest()[44]
-    print("Start of query")
-    all_results = [r[0] for r in v.full_ranked_vector_request(query1.query, collection.docLen)]
-    print("got results")
-    e.plot_precision_recall(e.precision_recall_points(all_results, query1.results, collection.docLen))
-    plt.show()
+
+    # Mean Average Precision
+
+    print(f"Mean Average Precision: {e.mean_average_precision(v)}")
