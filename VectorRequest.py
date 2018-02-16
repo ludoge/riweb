@@ -223,7 +223,7 @@ if __name__ == "__main__":
     while True:
         query = input("Please enter your query:\n> ")
         start_time = datetime.datetime.now()
-        if '!' in query:
+        if 'quit' in query:
             print("Exiting...")
             break
         response = request.full_ranked_vector_request(query)
