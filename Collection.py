@@ -14,7 +14,7 @@ nbThreadReduce = 2
 
 
 def intToVBCode(number):
-    """ Convertit un entier en un tableau d'octets correspondant à son variable byte code """
+    """ Convert an integer into a byte array in Variable Byte Code (VBC) """
     if not isinstance(number, int):
         raise TypeError("number converted in VB code must be an integer")
     if number < 0:
@@ -30,8 +30,7 @@ def intToVBCode(number):
 
 
 def VBCodeToFirstInt(file):
-    """ Pour un fichier binaire en lecture, récupère le premier nombre codé en VB code et renvoit l'entier
-     correspondant """
+    """ Read an open file to get the first number in VB code into an integer """
     value = 0
     byte = file.read(1)
     if byte==b'':
@@ -44,11 +43,10 @@ def VBCodeToFirstInt(file):
 
 
 class Collection:
-    """Classe pour manipuler des collections (on pourra faire hériter d'autres classes de celle-ci pour s'adapter au
-    format propre à chaque collection)."""
+    """ Main class to deal with collections """
 
     def __init__(self, indexLocation = None):
-        self.indexLocation = indexLocation # Emplacement où on stocke l'index inversé
+        self.indexLocation = indexLocation # Location on hard-drive to save the inverted index
         self.termId = {}
         self.termLen = 0
         self.docId = {}
@@ -61,13 +59,13 @@ class Collection:
             os.makedirs(self.indexLocation)
 
     def _getCommonWords(self):
-        """Récupère la liste des mots courants."""
+        """ Get common words from a file in the CACM folder """
         with open("Data/CACM/common_words", mode='r') as file:
             self.commonWords = file.read().splitlines()
             self.commonWords += list(string.punctuation)
 
     def _indexToBinary(self, file):
-        """ Convertit l'index inversé en variable byte code pour une enregistrement avec compression. """
+        """ Convert the inverted index in VB Code to be saved in an open file """
 
         for indexTerm in self.invertedIndex:
             vbcode = bytearray([])
@@ -78,14 +76,14 @@ class Collection:
                 previous_posting_id = posting[0]
                 term_code.extend(intToVBCode(posting_id_diff))
                 term_code.extend(intToVBCode(posting[1]))
-            # On ajoute au début de cette chaine d'octet le nombre de postings de ce terme, afin de savoir quand
-            # commence la liste de postings du terme suivant
+            # An integer is put at the beginning of this byte array for the current term in order to know how many
+            # postings there are before the next term
             vbcode.extend(intToVBCode(len(indexTerm[1])))
             vbcode.extend(term_code)
             file.write(vbcode)
 
     def _binaryToIndex(self, file):
-        """ Lit un fichier encodé en variable byte code pour récupérer l'index inversé. """
+        """ Read an open file in VB Code to get the inverted index """
         nbPostings = VBCodeToFirstInt(file)
         while nbPostings is not None:
             termId = VBCodeToFirstInt(file)
@@ -100,7 +98,7 @@ class Collection:
             nbPostings = VBCodeToFirstInt(file)
 
     def saveIndex(self):
-        """ Enregistre l'indexe inversé sur disque-dur. """
+        """ Save the inverted index on hard-drive """
         if self.indexLocation is not None:
             # Save invertedIndex in variable byte code
             with open(self.indexLocation + "/invertedIndex", mode="wb") as file:
@@ -120,7 +118,7 @@ class Collection:
             print("No location specified to save inverted index.")
 
     def loadIndex(self):
-        """ Récupère l'index inversé stocké sur disque-dur. """
+        """ Load inverted index from hard-drive """
         if self.indexLocation is not None:
             # Load invertedIndex
             self.invertedIndex = []
@@ -159,7 +157,7 @@ class CACMCollection(Collection):
         Collection.__init__(self, indexLocation)
 
     def answerQuestion(self):
-        """Pour répondre aux questions concernant le vocabulaire et les tokens de la collection."""
+        """ To answer the questions from the exercise about collections """
 
         common_words = self.commonWords
         nb_documents = 0
@@ -240,9 +238,9 @@ class CACMCollection(Collection):
         plt.show()
 
     def constructIndex(self):
-        """Constuit l'indexe inversé de la collection CACM."""
+        """ Construct inverted index for CACM Collection (in memory) """
 
-        # Définition locale du format des documents de la collection CACM.
+        # Class to describe a CACM document
         class _Document:
             def __init__(self, ID):
                 self.ID = ID
@@ -250,11 +248,10 @@ class CACMCollection(Collection):
                 self.summary = ""
                 self.keywords = ""
 
-        # Liste des mots courants
+        # Common words
         common_words = self.commonWords
 
-        # Lecture de tous les documents et récupération de leur contenu
-        # Il s'agit d'une lecture ligne par ligne en repérant les marqueurs.
+        # Reading all documents line by line
         all = open("Data/CACM/cacm.all", mode="r")
 
         documents = []
@@ -290,7 +287,7 @@ class CACMCollection(Collection):
                 readKeywords = True
         self.docLen = len(documents)
 
-        # Identification des tokens de chaque document et ajout à la liste des correspondances termId / documentId
+        # Token identification and list of term id / doc id
         for document in documents:
             self.docId[document.ID] = document.ID
             documentTokens = []
@@ -308,11 +305,12 @@ class CACMCollection(Collection):
                 self.list.append((termId,document.ID))
         self.list.sort()
 
-        # Création de l'index inversé
+        # Inverted index creation
         self.invertedIndex = [(key, [x[1] for x in group]) for key, group in groupby(self.list, key=lambda x: x[0])]
         self.invertedIndex = [(y[0], sorted(set([(z, y[1].count(z)) for z in y[1]]))) for y in self.invertedIndex]
 
     def queryTest(self):
+        """ To get queries and awaited responses for test """
 
         class Query:
             def __init__(self, id):
@@ -349,7 +347,7 @@ class CS276Collection(Collection):
         Collection.__init__(self, indexLocation)
 
     def answerQuestion(self):
-        """Pour répondre aux questions concernant le vocabulaire et les tokens de la collection."""
+        """ To answer the questions from the exercise about collections """
 
         common_words = self.commonWords
         nb_documents = 0
@@ -429,6 +427,7 @@ class CS276Collection(Collection):
         plt.show()
 
     def parseBlock(self, blockID):
+        """ Create a partial inverted index (in memory) for one block """
 
         global nbThreadMap, nbThreadReduce
 
@@ -452,6 +451,7 @@ class CS276Collection(Collection):
         locker_index = RLock()
 
         class Mapper(Thread):
+            """ Mapper for the map reduce to get tokens in documents """
 
             def __init__(self, documentsNames):
                 super().__init__()
@@ -491,8 +491,8 @@ class CS276Collection(Collection):
                         self.tasks.task_done()
 
         class MapperPool:
+            """ Pool of mappers consuming tasks from a queue (of document names) """
 
-            """ Pool of threads consuming tasks from a queue """
             def __init__(self, num_threads):
                 self.tasks = Queue(num_threads)
                 for _ in range(num_threads):
@@ -523,6 +523,7 @@ class CS276Collection(Collection):
         invertedIndex = []
 
         class Reducer(Thread):
+            """ Reducer for the map reduce to get have a list of postings for each term """
 
             def __init__(self, postings):
                 super().__init__()
@@ -543,8 +544,7 @@ class CS276Collection(Collection):
                         self.tasks.task_done()
 
         class ReducerPool:
-
-            """ Pool of threads consuming tasks from a queue """
+            """ Pool of reducers consuming tasks from a queue (of lists of postings) """
 
             def __init__(self, num_threads):
                 self.tasks = Queue(num_threads)
@@ -576,6 +576,8 @@ class CS276Collection(Collection):
         del list_before_reducer
 
     def saveBlockIndex(self, blockID):
+        """ Save the current partial inverted index for one block """
+
         if self.indexLocation is not None:
             # Save invertedIndex in variable byte code
             with open(self.indexLocation + "/" + str(blockID), mode="wb") as file:
@@ -587,6 +589,7 @@ class CS276Collection(Collection):
         self.invertedIndex = []
 
     def mergeBlockIndex(self, blockIndexFiles):
+        """ Merge all partial inverted index previously saved to get the whole inverted index """
 
         # Reading the first element from each index
         currentTermId = {}
@@ -640,6 +643,7 @@ class CS276Collection(Collection):
             termId += 1
 
     def constructIndex(self):
+        """ Construct the inverted index block by block """
 
         # Write inverted index for each block
         for blockID in range(10):
