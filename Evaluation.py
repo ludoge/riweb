@@ -1,4 +1,4 @@
-import Collection
+from Collection import *
 import VectorRequest
 import matplotlib.pyplot as plt
 
@@ -104,6 +104,7 @@ class Evaluation():
             for i in range(len(prec)):
                 prec[i] += new_prec[i]
                 rec[i] += new_rec[i]
+            print(query.id)
         n = len(self.collection.queryTest())
         prec = [x / n for x in prec]
         rec = [x / n for x in rec]
@@ -141,25 +142,66 @@ class Evaluation():
 
 
 if __name__ == '__main__':
-    collection = Collection.CACMCollection()
-    try:
+    collection_name = ""
+    while collection_name not in ['CACM', 'CS276']:
+        collection_name = input("Choose a collection among 'CACM' and 'CS276' (Not recommended)\n> ").upper()
+
+    if collection_name == 'CS276':
+        collection = CS276Collection()
+    else:
+        collection = CACMCollection()
+    if os.path.isfile('index' + collection_name + '/docId') and os.path.isfile('index' + collection_name + '/termId') \
+            and os.path.isfile('index' + collection_name + '/invertedIndex'):
         collection.loadIndex()
-    except:
+    else:
         collection.constructIndex()
         collection.saveIndex()
+
     v = VectorRequest.VectorRequest(collection)
     try:
         v.load_weights()
-    except:
+    except FileNotFoundError:
         v.all_weights()
+
     e = Evaluation(collection, v)
 
     # precision-recall
-    points = e.global_prec_rec(v)
-    e.plot_precision_recall(points)
+    while True:
+        action = input("Select a measure:\nA: precision-recall for all queries\nQ: precision-recall for one query\n"
+                       "E: E-measure for one query\nF: F-measure for one query\nM: Mean Average Precision for all queries\n> ")
 
-    plt.show()
+        action = action.lower()
+        if action == "a":
+            points = e.global_prec_rec(v)
+            e.plot_precision_recall(points)
+            plt.show()
+        elif action == "q":
+            query_no = int(input(f"Enter a query number between 1 and {len(collection.queryTest())}\n> "))
+            query = collection.queryTest()[query_no - 1]
+            all_results = [r[0] for r in v.full_ranked_vector_request(query.query, collection.docLen)]
+            points = e.precision_recall_points(all_results, query.results, collection.docLen)
+            e.plot_precision_recall(points)
+            plt.show()
+        elif action in "ef":
+            query_no = int(input(f"Enter a query number between 1 and {len(collection.queryTest())}\n> "))
+            query = collection.queryTest()[query_no - 1]
+            k = int(input("Enter the number of items to return:\n>  "))
+            alpha = float(input("Select a value for alpha:\n> "))
+            results = [r[0] for r in v.full_ranked_vector_request(query.query, k)]
+            if action == "e":
+                print(f"E-measure for alpha = {alpha}")
+                print(e.E_measure(results, query.results, alpha))
+            if action == "f":
+                print(f"F-measure for alpha = {alpha}")
+                print(e.F_measure(results, query.results, alpha))
+        elif action == "m":
+            print(f"Mean Average Precision:\n{e.mean_average_precision(v)}")
+        elif "quit" in action:
+            break
+        else:
+            print("Invalid option.")
 
-    # Mean Average Precision
 
-    print(f"Mean Average Precision: {e.mean_average_precision(v)}")
+            # Mean Average Precision
+
+            #
