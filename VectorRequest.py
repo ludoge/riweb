@@ -162,13 +162,14 @@ class VectorRequest:
         return res
 
     def save_weights(self):
-        """Enregistre les pondérations au même endroit que l'index inversé"""
+        """ Save weights at the same location as inverted index """
         if self.collection.indexLocation is not None:
             with open(f"{self.collection.indexLocation}/{self.weight_type}", mode="w+") as f:
                 for (_termId, _docId) in self.index_weights:
                     f.write(f"{_termId} {_docId} {self.index_weights[(_termId, _docId)]}\n")
 
     def load_weights(self):
+        """ Load weights from the same location as inverted index """
         if self.collection.indexLocation is not None:
             self.index_weights = {}
             with open(f"{self.collection.indexLocation}/{self.weight_type}", mode="r+") as f:
