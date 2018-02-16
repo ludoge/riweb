@@ -142,14 +142,8 @@ class Evaluation():
 
 
 if __name__ == '__main__':
-    collection_name = ""
-    while collection_name not in ['CACM', 'CS276']:
-        collection_name = input("Choose a collection among 'CACM' and 'CS276' (Not recommended)\n> ").upper()
-
-    if collection_name == 'CS276':
-        collection = CS276Collection()
-    else:
-        collection = CACMCollection()
+    collection_name = "CACM"
+    collection = CACMCollection()
     if os.path.isfile('index' + collection_name + '/docId') and os.path.isfile('index' + collection_name + '/termId') \
             and os.path.isfile('index' + collection_name + '/invertedIndex'):
         collection.loadIndex()
